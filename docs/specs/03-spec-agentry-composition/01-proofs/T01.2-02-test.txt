@@ -1,0 +1,16 @@
+Type: test
+Command: python3 -m pytest tests/ -v
+Expected: All tests pass with no regressions from DAG validation implementation
+Timestamp: 2026-03-20T00:00:00Z
+
+Composition-related tests:
+  tests/unit/test_workflow_models.py::TestCompositionBlock::test_defaults PASSED
+  tests/unit/test_workflow_models.py::TestCompositionBlock::test_with_steps PASSED
+  tests/unit/test_workflow_models.py::TestCompositionBlock::test_unknown_key_on_step_rejected PASSED
+
+Full test suite result:
+  1034 passed, 3 skipped
+
+No regressions introduced by DAG validation implementation.
+
+Status: PASS

@@ -1,0 +1,34 @@
+Type: cli
+Command: python3 -c "from agentry.models.composition import CompositionBlock; [validation tests]"
+Expected: All 8 DAG validation tests PASS
+Timestamp: 2026-03-20T00:00:00Z
+
+=== T01.2 Proof: DAG Validation Tests ===
+
+Test 1: Valid linear DAG passes validation
+  PASS: node_ids=['A', 'B', 'C']
+
+Test 2: Cycle A -> B -> A is detected
+  PASS: Cycle detected with A and B in message
+
+Test 3: Unknown depends_on reference
+  PASS: Error mentions nonexistent_node
+
+Test 4: Input source referencing unknown node
+  PASS: Error mentions unknown_node
+
+Test 5: Input source node not in depends_on raises error
+  PASS: Error requires triage in depends_on
+
+Test 6: Input with .output.<field> source format
+  PASS: node_ids=['triage', 'analyze']
+
+Test 7: Three-node cycle A -> B -> C -> A
+  PASS: Cycle detected in three-node graph
+
+Test 8: Empty CompositionBlock validates without error
+  PASS: empty block OK, node_ids=[]
+
+All 8 tests passed.
+
+Status: PASS
