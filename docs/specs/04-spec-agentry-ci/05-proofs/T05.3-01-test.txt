@@ -1,0 +1,44 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_ci_runtime.py -v
+Expected: All 30 unit tests pass
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+
+tests/unit/test_ci_runtime.py::TestBinderAutoDetection::test_github_actions_env_selects_github_actions_binder PASSED
+tests/unit/test_ci_runtime.py::TestBinderAutoDetection::test_no_github_actions_env_selects_local_binder PASSED
+tests/unit/test_ci_runtime.py::TestBinderAutoDetection::test_github_actions_false_selects_local_binder PASSED
+tests/unit/test_ci_runtime.py::TestBinderOverrideFlag::test_binder_local_overrides_github_actions_env PASSED
+tests/unit/test_ci_runtime.py::TestBinderOverrideFlag::test_binder_flag_value_is_passed_to_get_binder PASSED
+tests/unit/test_ci_runtime.py::TestPreflightWiring::test_github_token_scope_check_added_for_github_actions_binder PASSED
+tests/unit/test_ci_runtime.py::TestPreflightWiring::test_github_token_scope_check_not_added_for_local_binder PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_returns_dict_with_required_keys PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_name_includes_workflow_name PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_default_name_is_agentry_workflow PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_jobs_block_contains_agentry_job PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_agentry_job_runs_on_ubuntu PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_agentry_job_has_steps PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_steps_include_checkout PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_steps_include_agentry_run PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_run_step_includes_workflow_path PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigStructure::test_default_workflow_path_is_workflow_yaml PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigPermissions::test_no_tools_yields_contents_read PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigPermissions::test_pr_comment_tool_yields_pull_requests_write PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigPermissions::test_pr_review_tool_yields_pull_requests_write PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigPermissions::test_repository_read_tool_keeps_contents_read PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigPermissions::test_repository_write_tool_upgrades_to_contents_write PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigPermissions::test_pr_and_repository_tools_combined PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigPermissions::test_contents_read_always_present PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigPermissions::test_no_pull_requests_permission_without_pr_tools PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigTriggers::test_default_trigger_is_pull_request PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigTriggers::test_push_trigger_added PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigTriggers::test_schedule_trigger_includes_cron PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigTriggers::test_issues_trigger_includes_types PASSED
+tests/unit/test_ci_runtime.py::TestGeneratePipelineConfigTriggers::test_multiple_triggers PASSED
+
+============================== 30 passed in 0.40s ==============================
+
+Status: PASS
