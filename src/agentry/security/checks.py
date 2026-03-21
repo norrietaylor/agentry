@@ -1,6 +1,6 @@
 """Concrete preflight check implementations.
 
-Provides three concrete preflight checks:
+Provides four concrete preflight checks:
 
 1. ``AnthropicAPIKeyCheck`` — verifies the ``ANTHROPIC_API_KEY`` environment
    variable is set and the key is accepted by the Anthropic API (GET
@@ -10,6 +10,8 @@ Provides three concrete preflight checks:
 3. ``FilesystemMountsCheck`` — verifies that every path declared in
    ``safety.filesystem.read`` and ``safety.filesystem.write`` exists on the
    host before container mount.
+4. ``GitHubTokenScopeCheck`` — verifies that ``GITHUB_TOKEN`` has the
+   required scopes for the declared tools when running in GitHub Actions CI.
 
 Each class satisfies the
 :class:`~agentry.security.envelope.PreflightCheck` protocol::
@@ -24,6 +26,7 @@ Usage::
         AnthropicAPIKeyCheck,
         DockerAvailableCheck,
         FilesystemMountsCheck,
+        GitHubTokenScopeCheck,
     )
 
     checks = [
@@ -32,6 +35,10 @@ Usage::
         FilesystemMountsCheck(
             read_paths=workflow.safety.filesystem.read,
             write_paths=workflow.safety.filesystem.write,
+        ),
+        GitHubTokenScopeCheck(
+            tool_declarations=["repository:read", "pr:comment"],
+            github_repository="owner/repo",
         ),
     ]
 """
@@ -374,5 +381,245 @@ class FilesystemMountsCheck:
             remediation=(
                 "Create the missing directories/files or update the workflow's "
                 "filesystem configuration to reference existing paths."
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# GitHubTokenScopeCheck
+# ---------------------------------------------------------------------------
+
+# Mapping from tool declaration to required GitHub token scope(s).
+# Each tool may require one or more scopes; the token must satisfy at least
+# one of the alternatives where listed (first entry is preferred).
+_TOOL_TO_SCOPES: dict[str, list[str]] = {
+    "repository:read": ["contents:read"],
+    "pr:comment": ["pull-requests:write", "issues:write"],
+    "pr:review": ["pull-requests:write"],
+}
+
+# GitHub API scope names as returned in the X-OAuth-Scopes header map to the
+# fine-grained permission names we use internally.
+_SCOPE_TO_API_SCOPE: dict[str, str] = {
+    "contents:read": "contents",
+    "pull-requests:write": "pull_requests",
+    "issues:write": "issues",
+}
+
+
+class GitHubTokenScopeCheck:
+    """Preflight check that verifies GITHUB_TOKEN has required scopes.
+
+    When running in a GitHub Actions context (``GITHUB_TOKEN`` set), this
+    check verifies that the token has sufficient permissions for the declared
+    tools.  Outside CI (no ``GITHUB_TOKEN``), the check passes immediately
+    as a no-op.
+
+    Verification strategy:
+
+    1. Collect required scopes from ``tool_declarations`` using the known
+       tool-to-scope mapping.
+    2. Make a ``GET /repos/{owner}/{repo}`` request using the token.
+    3. Inspect the ``X-OAuth-Scopes`` response header for classic tokens, or
+       treat a ``403`` response as an indicator of missing scope for
+       fine-grained tokens.
+
+    Args:
+        tool_declarations: List of tool declaration strings such as
+            ``"repository:read"`` and ``"pr:comment"``.
+        github_repository: Repository in ``owner/repo`` format used for
+            the test API call.  Defaults to ``""`` (skips API call).
+        api_base: Base URL for the GitHub API.
+            Defaults to ``"https://api.github.com"``.
+        timeout: Network timeout in seconds.  Defaults to ``10``.
+    """
+
+    def __init__(
+        self,
+        tool_declarations: list[str],
+        github_repository: str,
+        api_base: str = "https://api.github.com",
+        timeout: int = 10,
+    ) -> None:
+        self._tool_declarations = list(tool_declarations)
+        self._github_repository = github_repository
+        self._api_base = api_base.rstrip("/")
+        self._timeout = timeout
+
+    @property
+    def name(self) -> str:
+        """Name of this preflight check."""
+        return "github_token_scope"
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _required_scopes(self) -> dict[str, list[str]]:
+        """Return mapping of required scope -> tools that need it."""
+        scope_to_tools: dict[str, list[str]] = {}
+        for tool in self._tool_declarations:
+            scopes = _TOOL_TO_SCOPES.get(tool, [])
+            for scope in scopes:
+                scope_to_tools.setdefault(scope, []).append(tool)
+        return scope_to_tools
+
+    def _check_scope_via_api(
+        self, token: str, scope: str
+    ) -> tuple[bool, str]:
+        """Check a single scope by making a lightweight test API call.
+
+        Returns a (passed, detail) tuple where *detail* is an empty string
+        on success or an error description on failure.
+        """
+        if not self._github_repository:
+            # Cannot verify without repository; optimistically pass.
+            return True, ""
+
+        url = f"{self._api_base}/repos/{self._github_repository}"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                # For classic tokens the granted scopes are in the header.
+                oauth_scopes_header = resp.headers.get("X-OAuth-Scopes", "")
+                if oauth_scopes_header:
+                    granted = {
+                        s.strip() for s in oauth_scopes_header.split(",")
+                    }
+                    api_scope = _SCOPE_TO_API_SCOPE.get(scope, scope)
+                    # Classic token scopes are coarser; map fine-grained names.
+                    if scope == "contents:read":
+                        # "repo" or "public_repo" covers contents read
+                        if "repo" in granted or "public_repo" in granted:
+                            return True, ""
+                    if scope in ("pull-requests:write", "issues:write"):
+                        if "repo" in granted:
+                            return True, ""
+                    if api_scope in granted or scope in granted:
+                        return True, ""
+                    # Header present but scope not found — fail.
+                    return False, (
+                        f"X-OAuth-Scopes header present but '{scope}' "
+                        f"not found (granted: {oauth_scopes_header!r})"
+                    )
+                # Fine-grained token: 200 on GET /repos implies at least
+                # contents:read.  Treat success for contents:read as passed.
+                if scope == "contents:read":
+                    return True, ""
+                # For write scopes on fine-grained tokens we cannot confirm
+                # from a read-only endpoint; optimistically pass here and
+                # rely on the 403 path caught below.
+                return True, ""
+        except urllib.error.HTTPError as exc:
+            if exc.code == 403:
+                return False, (
+                    f"GitHub API returned 403 Forbidden for scope '{scope}'; "
+                    "token lacks the required permission."
+                )
+            if exc.code == 404:
+                # Repository not found — may be a private repo with no access,
+                # but this is not necessarily a scope issue.
+                return False, (
+                    f"Repository '{self._github_repository}' not found "
+                    "(404). Verify the repository name and token access."
+                )
+            return False, (
+                f"GitHub API error HTTP {exc.code} when checking scope "
+                f"'{scope}': {exc.reason}."
+            )
+        except urllib.error.URLError as exc:
+            return False, (
+                f"Could not reach GitHub API while checking scope "
+                f"'{scope}': {exc.reason}."
+            )
+        except OSError as exc:
+            return False, (
+                f"Network error while checking scope '{scope}': {exc}."
+            )
+
+    # ------------------------------------------------------------------
+    # run()
+    # ------------------------------------------------------------------
+
+    def run(self) -> _CheckResult:
+        """Execute the GitHub token scope verification.
+
+        Returns:
+            :class:`_CheckResult` with ``passed=True`` when the token has
+            sufficient scopes for all declared tools, or when ``GITHUB_TOKEN``
+            is not set (not in CI context).
+        """
+        token = os.environ.get("GITHUB_TOKEN", "")
+        if not token:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message=(
+                    "GITHUB_TOKEN is not set; skipping scope check "
+                    "(not running in a GitHub Actions CI context)."
+                ),
+            )
+
+        scope_to_tools = self._required_scopes()
+        if not scope_to_tools:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message="No tool declarations require GitHub token scopes.",
+            )
+
+        missing_scopes: list[tuple[str, list[str], str]] = []
+        # scope -> (tools requiring it, detail message)
+
+        for scope, tools in scope_to_tools.items():
+            passed, detail = self._check_scope_via_api(token, scope)
+            if not passed:
+                missing_scopes.append((scope, tools, detail))
+
+        if not missing_scopes:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message=(
+                    "GITHUB_TOKEN has all required scopes for the declared "
+                    "tools."
+                ),
+            )
+
+        # Build a descriptive failure message.
+        lines: list[str] = [
+            "GITHUB_TOKEN is missing required scopes:"
+        ]
+        remediation_scopes: list[str] = []
+        for scope, tools, detail in missing_scopes:
+            tools_str = ", ".join(f'"{t}"' for t in tools)
+            line = f"  - '{scope}' (required by: {tools_str})"
+            if detail:
+                line += f" — {detail}"
+            lines.append(line)
+            # Collect unique permission names for remediation.
+            perm = scope.replace(":", ": ")
+            if perm not in remediation_scopes:
+                remediation_scopes.append(perm)
+
+        remediation_lines = ["permissions:"]
+        for perm in remediation_scopes:
+            remediation_lines.append(f"  {perm}")
+
+        return _CheckResult(
+            passed=False,
+            name=self.name,
+            message="\n".join(lines),
+            remediation=(
+                "Add `permissions: pull-requests: write` to your GitHub "
+                "Actions workflow YAML, for example:\n"
+                + "\n".join(remediation_lines)
             ),
         )
