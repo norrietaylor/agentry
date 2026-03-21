@@ -356,6 +356,18 @@ def validate(ctx: click.Context, workflow_paths: tuple[str, ...], security_audit
         "No upstream data is provided and no downstream propagation occurs."
     ),
 )
+@click.option(
+    "--binder",
+    "binder",
+    default=None,
+    type=str,
+    metavar="NAME",
+    help=(
+        "Override binder selection. "
+        "Auto-detected when not specified: github-actions if GITHUB_ACTIONS=true, "
+        "local otherwise."
+    ),
+)
 @click.pass_context
 def run(
     ctx: click.Context,
@@ -364,6 +376,7 @@ def run(
     target: str,
     skip_preflight: bool,
     node: str | None,
+    binder: str | None,
 ) -> None:
     """Execute a workflow definition against a local repository.
 
@@ -376,6 +389,7 @@ def run(
       --target PATH           Repository to run against (default: cwd)
       --skip-preflight        Skip preflight checks (development only)
       --node NODE_ID          Execute only the specified node in isolation
+      --binder NAME           Override binder (auto-detected from GITHUB_ACTIONS env)
 
     \b
     Examples:
@@ -386,6 +400,8 @@ def run(
           --input issue-description='Login fails' \\
           --target /path/to/repo
       agentry run workflows/planning-pipeline.yaml --node triage
+      agentry run workflows/code-review.yaml --binder github-actions
+      agentry run workflows/code-review.yaml --binder local
     """
     import os
     import signal
@@ -414,6 +430,33 @@ def run(
         parsed_inputs[key.strip()] = value.strip()
 
     logger.debug("Parsed inputs: %s", parsed_inputs)
+
+    # Resolve the active binder: explicit --binder flag overrides auto-detection.
+    # Auto-detection: use "github-actions" when GITHUB_ACTIONS=true, else "local".
+    _binder_name: str
+    if binder is not None:
+        _binder_name = binder
+    elif os.environ.get("GITHUB_ACTIONS") == "true":
+        _binder_name = "github-actions"
+    else:
+        _binder_name = "local"
+
+    logger.debug("Resolved binder: %s", _binder_name)
+
+    try:
+        from agentry.binders.registry import get_binder as _get_binder
+
+        _active_binder = _get_binder(_binder_name)
+        logger.debug("Instantiated binder: %s", _active_binder)
+    except KeyError as exc:
+        click.echo(f"Error: unknown binder {_binder_name!r}: {exc}", err=True)
+        sys.exit(1)
+    except ValueError as exc:
+        click.echo(
+            f"Error: binder {_binder_name!r} could not be initialised: {exc}",
+            err=True,
+        )
+        sys.exit(1)
 
     # Register SIGINT handler for graceful Ctrl+C (exit code 130)
     partial_results: dict[str, object] = {}
@@ -447,6 +490,7 @@ def run(
             AnthropicAPIKeyCheck,
             DockerAvailableCheck,
             FilesystemMountsCheck,
+            GitHubTokenScopeCheck,
         )
         from agentry.security.setup import SetupPhase, SetupPhaseError, SetupPreflightError
 
@@ -465,6 +509,16 @@ def run(
                     write_paths=list(_loaded_workflow.safety.filesystem.write),
                 ),
             ]
+            # When running in GitHub Actions, add a token scope preflight check.
+            if _binder_name == "github-actions":
+                _tool_declarations = list(_loaded_workflow.tools.capabilities)
+                _github_repository = os.environ.get("GITHUB_REPOSITORY", "")
+                _checks.append(
+                    GitHubTokenScopeCheck(
+                        tool_declarations=_tool_declarations,
+                        github_repository=_github_repository,
+                    )
+                )
         _runner = _MinimalRunner()
         _phase = SetupPhase(
             workflow=_loaded_workflow,
@@ -519,13 +573,11 @@ def run(
         assert _loaded_workflow is not None  # guaranteed by _is_composition check
 
         try:
-            from agentry.binders.local import LocalBinder
             from agentry.composition.display import CompositionDisplay
             from agentry.composition.engine import CompositionEngine
             from agentry.runners.detector import RunnerDetector
 
             _detector = RunnerDetector(llm_client=None)
-            _binder = LocalBinder()
 
             if node is not None:
                 # Single-node isolation: build a single-step composition.
@@ -572,7 +624,7 @@ def run(
             _engine = CompositionEngine(
                 composition=_composition_to_run,
                 runner_detector=_detector,
-                binder=_binder,
+                binder=_active_binder,
                 run_dir=run_dir,
                 workflow_base_dir=workflow_base_dir,
                 on_node_start=_display.on_node_start,

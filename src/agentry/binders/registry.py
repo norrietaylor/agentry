@@ -17,6 +17,7 @@ import importlib.metadata
 import logging
 from typing import TYPE_CHECKING, Any
 
+from agentry.binders.github_actions import GitHubActionsBinder
 from agentry.binders.local import LocalBinder
 
 if TYPE_CHECKING:
@@ -27,19 +28,26 @@ logger = logging.getLogger(__name__)
 # Name of the built-in default binder.
 DEFAULT_BINDER_NAME = "local"
 
+# Name of the built-in GitHub Actions binder.
+GITHUB_ACTIONS_BINDER_NAME = "github-actions"
+
 
 def discover_binders() -> dict[str, type[Any]]:
     """Discover all registered binder classes via entry points.
 
     Loads entry points from the ``agentry.binders`` group. The built-in
-    ``local`` binder is always present regardless of installed packages.
+    ``local`` and ``github-actions`` binders are always present regardless
+    of installed packages.
 
     Returns:
         Mapping of binder name to binder class. The ``local`` key always
-        maps to :class:`~agentry.binders.local.LocalBinder`.
+        maps to :class:`~agentry.binders.local.LocalBinder` and the
+        ``github-actions`` key always maps to
+        :class:`~agentry.binders.github_actions.GitHubActionsBinder`.
     """
     binders: dict[str, type[Any]] = {
         DEFAULT_BINDER_NAME: LocalBinder,
+        GITHUB_ACTIONS_BINDER_NAME: GitHubActionsBinder,
     }
 
     try:
@@ -87,6 +95,9 @@ def get_binder(name: str | None = None) -> EnvironmentBinder:
     """
     if name is None or name == DEFAULT_BINDER_NAME:
         return LocalBinder()
+
+    if name == GITHUB_ACTIONS_BINDER_NAME:
+        return GitHubActionsBinder()
 
     available = discover_binders()
     if name not in available:
