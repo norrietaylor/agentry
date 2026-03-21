@@ -1,0 +1,69 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_composition_engine.py tests/unit/test_composition_record.py -v
+Expected: All tests pass (52 tests)
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False
+
+tests/unit/test_composition_engine.py::TestSequentialChain::test_all_statuses_completed PASSED
+tests/unit/test_composition_engine.py::TestSequentialChain::test_overall_status_completed PASSED
+tests/unit/test_composition_engine.py::TestSequentialChain::test_execution_order_a_before_b_before_c PASSED
+tests/unit/test_composition_engine.py::TestSequentialChain::test_runner_called_three_times PASSED
+tests/unit/test_composition_engine.py::TestParallelFanOut::test_overall_status_completed PASSED
+tests/unit/test_composition_engine.py::TestParallelFanOut::test_all_four_nodes_completed PASSED
+tests/unit/test_composition_engine.py::TestParallelFanOut::test_b_and_c_run_after_a_but_before_d PASSED
+tests/unit/test_composition_engine.py::TestParallelFanOut::test_wall_clock_less_than_sequential_with_delays PASSED
+tests/unit/test_composition_engine.py::TestParallelFanOut::test_runner_called_four_times PASSED
+tests/unit/test_composition_engine.py::TestSingleNode::test_single_node_completes PASSED
+tests/unit/test_composition_engine.py::TestSingleNode::test_single_node_overall_status_completed PASSED
+tests/unit/test_composition_engine.py::TestSingleNode::test_single_node_runner_execute_called_once PASSED
+tests/unit/test_composition_engine.py::TestSingleNode::test_single_node_returns_composition_record PASSED
+tests/unit/test_composition_engine.py::TestRunnerTeardown::test_teardown_called_for_single_node PASSED
+tests/unit/test_composition_engine.py::TestRunnerTeardown::test_teardown_called_for_each_node_in_chain PASSED
+tests/unit/test_composition_engine.py::TestRunnerTeardown::test_teardown_called_for_fan_out PASSED
+tests/unit/test_composition_engine.py::TestCompositionRecordSavedToDisk::test_record_file_created PASSED
+tests/unit/test_composition_engine.py::TestCompositionRecordSavedToDisk::test_record_file_is_valid_json PASSED
+tests/unit/test_composition_engine.py::TestCompositionRecordSavedToDisk::test_record_file_contains_correct_overall_status PASSED
+tests/unit/test_composition_engine.py::TestCompositionRecordSavedToDisk::test_record_file_contains_node_statuses PASSED
+tests/unit/test_composition_engine.py::TestCompositionRecordSavedToDisk::test_record_file_contains_wall_clock_timing PASSED
+tests/unit/test_composition_engine.py::TestCompositionRecordSavedToDisk::test_record_returned_matches_file PASSED
+tests/unit/test_composition_engine.py::TestNodeOutputWrittenToDisk::test_node_result_json_created PASSED
+tests/unit/test_composition_engine.py::TestNodeOutputWrittenToDisk::test_multiple_node_results_created PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_contains_overall_status PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_overall_status_failed PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_overall_status_partial PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_contains_wall_clock_timing PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_contains_node_statuses_as_strings PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_all_node_status_values PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_contains_node_records PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_none_node_record_serializes_as_none PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_is_json_serializable PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordToDict::test_to_dict_has_all_required_keys PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordSave::test_save_creates_file PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordSave::test_save_file_is_valid_json PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordSave::test_save_file_content_matches_to_dict PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordSave::test_save_creates_run_dir_if_missing PASSED
+tests/unit/test_composition_record.py::TestCompositionRecordSave::test_save_overwrites_existing_file PASSED
+tests/unit/test_composition_record.py::TestWallClockSecondsProperty::test_wall_clock_seconds_basic PASSED
+tests/unit/test_composition_record.py::TestWallClockSecondsProperty::test_wall_clock_seconds_subsecond PASSED
+tests/unit/test_composition_record.py::TestWallClockSecondsProperty::test_wall_clock_seconds_zero_when_equal PASSED
+tests/unit/test_composition_record.py::TestWallClockSecondsProperty::test_wall_clock_seconds_default_zero PASSED
+tests/unit/test_composition_record.py::TestPerNodeStatusMap::test_all_completed PASSED
+tests/unit/test_composition_record.py::TestPerNodeStatusMap::test_mixed_statuses PASSED
+tests/unit/test_composition_record.py::TestPerNodeStatusMap::test_status_map_empty_by_default PASSED
+tests/unit/test_composition_record.py::TestPerNodeStatusMap::test_status_map_serializes_to_string_values PASSED
+tests/unit/test_composition_record.py::TestMakeCompositionRecord::test_factory_sets_wall_clock_start PASSED
+tests/unit/test_composition_record.py::TestMakeCompositionRecord::test_factory_sets_wall_clock_end_to_zero PASSED
+tests/unit/test_composition_record.py::TestMakeCompositionRecord::test_factory_accepts_override_start PASSED
+tests/unit/test_composition_record.py::TestMakeCompositionRecord::test_factory_accepts_node_statuses PASSED
+tests/unit/test_composition_record.py::TestMakeCompositionRecord::test_factory_defaults_overall_status_completed PASSED
+
+============================== 52 passed in 0.54s ==============================
+
+Status: PASS
