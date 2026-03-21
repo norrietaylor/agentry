@@ -1,0 +1,9 @@
+Type: cli
+Command: python3 -c "from agentry.runners.in_process import InProcessRunner; from agentry.runners import RunnerProtocol; runner = InProcessRunner(llm_client=None); assert isinstance(runner, RunnerProtocol); print('✓ InProcessRunner satisfies RunnerProtocol')"
+Expected: InProcessRunner implements all required methods (provision, execute, teardown, check_available) and passes isinstance(runner, RunnerProtocol)
+Timestamp: 2026-03-20T00:00:00Z
+
+✓ InProcessRunner satisfies RunnerProtocol
+
+Status: PASS
+Summary: InProcessRunner satisfies the @runtime_checkable RunnerProtocol via isinstance check. The implementation provides all four required methods (provision, execute, teardown, check_available) with correct signatures.

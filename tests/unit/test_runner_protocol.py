@@ -12,8 +12,10 @@ Tests cover:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -399,3 +401,248 @@ class TestPublicAPI:
         assert RunnerContext is _RunnerContext
         assert RunnerProtocol is _RunnerProtocol
         assert RunnerStatus is _RunnerStatus
+
+
+# ---------------------------------------------------------------------------
+# InProcessRunner tests
+# ---------------------------------------------------------------------------
+
+
+class TestInProcessRunner:
+    """Tests for T01.3: InProcessRunner implementation."""
+
+    def test_in_process_runner_satisfies_protocol(self) -> None:
+        """InProcessRunner satisfies the RunnerProtocol."""
+        from agentry.runners.in_process import InProcessRunner
+
+        runner = InProcessRunner(llm_client=object())
+        assert isinstance(runner, RunnerProtocol)
+
+    def test_provision_returns_context_with_no_isolation(self) -> None:
+        """provision() returns RunnerContext with no container/network IDs."""
+        from agentry.runners.in_process import InProcessRunner
+
+        runner = InProcessRunner(llm_client=object())
+        safety = SafetyBlock()
+        ctx = runner.provision(safety_block=safety, resolved_inputs={})
+
+        assert isinstance(ctx, RunnerContext)
+        assert ctx.container_id == ""
+        assert ctx.network_id == ""
+        assert ctx.mount_mappings == {}
+        assert ctx.metadata["runner_type"] == "in_process"
+
+    def test_provision_logs_elevated_trust_warning(self, caplog) -> None:
+        """provision() logs a warning about elevated trust mode."""
+        from agentry.runners.in_process import InProcessRunner
+
+        runner = InProcessRunner(llm_client=object())
+        safety = SafetyBlock()
+
+        with caplog.at_level(logging.WARNING):
+            runner.provision(safety_block=safety, resolved_inputs={})
+
+        assert any(
+            "elevated trust mode" in record.message.lower()
+            and "no runner isolation" in record.message.lower()
+            for record in caplog.records
+        )
+
+    def test_execute_delegates_to_agent_executor(self) -> None:
+        """execute() delegates to AgentExecutor and wraps result."""
+        from unittest.mock import MagicMock
+
+        from agentry.runners.in_process import InProcessRunner
+
+        # Mock the AgentExecutor
+        mock_executor = MagicMock()
+        mock_record = ExecutionRecord(
+            final_content="execution result",
+            model_used="claude-test",
+            total_llm_calls=1,
+            stop_reason="end_turn",
+            timed_out=False,
+            error="",
+        )
+        mock_executor.run.return_value = mock_record
+
+        # Create a runner with a mock that won't be used
+        # (we'll patch AgentExecutor)
+        runner = InProcessRunner(llm_client=MagicMock())
+
+        ctx = RunnerContext()
+        config = AgentConfig(
+            system_prompt="test",
+            resolved_inputs={},
+            tool_names=[],
+            llm_config=object(),
+        )
+
+        # Patch AgentExecutor inside the execute method
+        from unittest.mock import patch
+
+        with patch(
+            "agentry.runners.in_process.AgentExecutor"
+        ) as mock_executor_class:
+            mock_executor_instance = MagicMock()
+            mock_executor_class.return_value = mock_executor_instance
+            mock_executor_instance.run.return_value = mock_record
+
+            result = runner.execute(runner_context=ctx, agent_config=config)
+
+            # Verify the result was wrapped correctly
+            assert isinstance(result, ExecutionResult)
+            assert result.execution_record is mock_record
+            assert result.exit_code == 0
+            assert result.stdout == "execution result"
+            assert result.stderr == ""
+            assert result.timed_out is False
+            assert result.runner_metadata["runner_type"] == "in_process"
+
+    def test_execute_sets_error_exit_code_on_failure(self) -> None:
+        """execute() sets exit_code=1 when execution has an error."""
+        from unittest.mock import patch
+
+        from agentry.runners.in_process import InProcessRunner
+
+        runner = InProcessRunner(llm_client=MagicMock())
+        ctx = RunnerContext()
+        config = AgentConfig(
+            system_prompt="test",
+            resolved_inputs={},
+            tool_names=[],
+            llm_config=object(),
+        )
+
+        # Create a record with an error
+        mock_record = ExecutionRecord(
+            final_content="",
+            model_used="claude-test",
+            total_llm_calls=1,
+            stop_reason="end_turn",
+            timed_out=False,
+            error="LLM call failed",
+        )
+
+        with patch(
+            "agentry.runners.in_process.AgentExecutor"
+        ) as mock_executor_class:
+            mock_executor_instance = MagicMock()
+            mock_executor_class.return_value = mock_executor_instance
+            mock_executor_instance.run.return_value = mock_record
+
+            result = runner.execute(runner_context=ctx, agent_config=config)
+
+            assert result.exit_code == 1
+            assert result.stderr == "LLM call failed"
+
+    def test_execute_handles_timeout(self) -> None:
+        """execute() correctly reflects timeout from ExecutionRecord."""
+        from unittest.mock import patch
+
+        from agentry.runners.in_process import InProcessRunner
+
+        runner = InProcessRunner(llm_client=MagicMock())
+        ctx = RunnerContext()
+        config = AgentConfig(
+            system_prompt="test",
+            resolved_inputs={},
+            tool_names=[],
+            llm_config=object(),
+        )
+
+        # Create a record with timeout
+        mock_record = ExecutionRecord(
+            final_content="",
+            model_used="claude-test",
+            total_llm_calls=0,
+            stop_reason="",
+            timed_out=True,
+            error="Timeout after 300 seconds",
+        )
+
+        with patch(
+            "agentry.runners.in_process.AgentExecutor"
+        ) as mock_executor_class:
+            mock_executor_instance = MagicMock()
+            mock_executor_class.return_value = mock_executor_instance
+            mock_executor_instance.run.return_value = mock_record
+
+            result = runner.execute(runner_context=ctx, agent_config=config)
+
+            assert result.timed_out is True
+            assert result.exit_code == 1
+
+    def test_teardown_is_no_op(self) -> None:
+        """teardown() is a no-op and never raises."""
+        from agentry.runners.in_process import InProcessRunner
+
+        runner = InProcessRunner(llm_client=object())
+        ctx = RunnerContext()
+        # Should not raise
+        runner.teardown(ctx)
+        # Should be idempotent
+        runner.teardown(ctx)
+
+    def test_check_available_always_returns_true(self) -> None:
+        """check_available() always returns available=True."""
+        from agentry.runners.in_process import InProcessRunner
+
+        runner = InProcessRunner(llm_client=object())
+        status = runner.check_available()
+
+        assert isinstance(status, RunnerStatus)
+        assert status.available is True
+        assert "available" in status.message.lower()
+
+    def test_full_in_process_lifecycle(self) -> None:
+        """Full lifecycle: check_available -> provision -> execute -> teardown."""
+        from unittest.mock import MagicMock, patch
+
+        from agentry.llm.models import LLMConfig
+
+        from agentry.runners.in_process import InProcessRunner
+
+        runner = InProcessRunner(llm_client=MagicMock())
+        safety = SafetyBlock()
+
+        # 1. Check availability
+        status = runner.check_available()
+        assert status.available
+
+        # 2. Provision
+        ctx = runner.provision(safety_block=safety, resolved_inputs={})
+        assert ctx.container_id == ""
+        assert ctx.metadata["runner_type"] == "in_process"
+
+        # 3. Execute with mocked AgentExecutor
+        mock_record = ExecutionRecord(
+            final_content="done",
+            model_used="claude-test",
+            total_llm_calls=1,
+            stop_reason="end_turn",
+        )
+
+        config = AgentConfig(
+            system_prompt="You are a reviewer.",
+            resolved_inputs={},
+            tool_names=["repository:read"],
+            llm_config=LLMConfig(
+                model="claude-sonnet-4-5", max_tokens=4096
+            ),
+            timeout=300.0,
+        )
+
+        with patch(
+            "agentry.runners.in_process.AgentExecutor"
+        ) as mock_executor_class:
+            mock_executor_instance = MagicMock()
+            mock_executor_class.return_value = mock_executor_instance
+            mock_executor_instance.run.return_value = mock_record
+
+            result = runner.execute(runner_context=ctx, agent_config=config)
+            assert result.exit_code == 0
+            assert result.execution_record is mock_record
+
+        # 4. Teardown (should not raise)
+        runner.teardown(ctx)

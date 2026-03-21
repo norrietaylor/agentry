@@ -1,0 +1,28 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_runner_protocol.py::TestInProcessRunner -v
+Expected: All InProcessRunner tests pass (protocol compliance, provisioning, execution delegation, error handling, teardown, availability)
+Timestamp: 2026-03-20T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None
+collecting ... collected 9 items
+
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_in_process_runner_satisfies_protocol PASSED [ 11%]
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_provision_returns_context_with_no_isolation PASSED [ 22%]
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_provision_logs_elevated_trust_warning PASSED [ 33%]
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_execute_delegates_to_agent_executor PASSED [ 44%]
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_execute_sets_error_exit_code_on_failure PASSED [ 55%]
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_execute_handles_timeout PASSED [ 66%]
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_teardown_is_no_op PASSED [ 77%]
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_check_available_always_returns_true PASSED [ 88%]
+tests/unit/test_runner_protocol.py::TestInProcessRunner::test_full_in_process_lifecycle PASSED [100%]
+
+============================== 9 passed in 0.36s ===============================
+
+Status: PASS
+Summary: All 9 InProcessRunner tests passed, verifying protocol compliance, runtime_checkable isinstance check, provision/execute/teardown/check_available methods, logging warning for elevated trust mode, execution delegation to AgentExecutor, proper error and timeout handling, and full lifecycle.
