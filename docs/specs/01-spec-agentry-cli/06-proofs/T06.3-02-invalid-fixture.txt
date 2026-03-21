@@ -1,0 +1,27 @@
+Type: test
+Command: validate_workflow_file('tests/fixtures/invalid-workflow.yaml')
+Expected: Multiple validation errors (semver, extra fields, etc.)
+Timestamp: 2026-03-20T20:05:11.884249Z
+
+INVALID WORKFLOW FIXTURE VALIDATION
+======================================================================
+Total Errors Found: 3
+
+Error Details:
+----------------------------------------------------------------------
+1. error[value_error]: tests/fixtures/invalid-workflow.yaml: identity.version
+  Value error, Invalid semantic version: 'not-a-version'. Expected format: MAJOR.MINOR.PATCH (e.g. '1.0.0', '0.2.1-beta')
+  hint: Check the field value against the workflow specification.
+2. error[extra_forbidden]: tests/fixtures/invalid-workflow.yaml: model.extra_field
+  Extra inputs are not permitted
+  hint: Remove the unknown field — only documented keys are allowed.
+3. error[greater_than_equal]: tests/fixtures/invalid-workflow.yaml: output.budget.max_findings
+  Input should be greater than or equal to 1
+  hint: Refer to the Agentry workflow specification for valid values.
+
+======================================================================
+Result: PASS (fixture correctly has 3 validation errors)
+
+Validation Errors Categories:
+  - Semver version error detected
+  - Extra/unknown field errors detected
