@@ -1,0 +1,18 @@
+Type: cli
+Command: python3 -c "import and exercise CompositionRecord, NodeStatus, CompositionStatus, make_composition_record"
+Expected: All assertions passed with correct serialization and save() behavior
+Timestamp: 2026-03-20T00:00:00Z
+
+Output:
+save path: /var/folders/5c/6xwlcpm932b6p10cqs_n6r200000gn/T/tmp6qo5f746/composition-record.json
+All assertions passed.
+
+Assertions verified:
+- NodeStatus enum values: completed, failed, skipped, not_reached
+- CompositionStatus enum values: completed, failed, partial
+- wall_clock_seconds property returns end - start
+- to_dict() serializes all fields to plain JSON-compatible dict
+- save() writes composition-record.json to run_dir, returns Path
+- make_composition_record() fills wall_clock_start with time.time()
+
+Status: PASS
