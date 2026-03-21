@@ -1,0 +1,39 @@
+Type: cli
+Command: python3 -c "functional smoke tests for generate_pipeline_config()"
+Expected: All 10 functional tests pass verifying the method returns the correct structure
+Timestamp: 2026-03-21T00:00:00Z
+
+Output:
+=== Test 1: Default parameters ===
+PASS
+=== Test 2: Custom workflow name ===
+PASS
+=== Test 3: Multiple triggers ===
+PASS
+=== Test 4: Schedule trigger ===
+PASS
+=== Test 5: Issues trigger ===
+PASS
+=== Test 6: Permissions from tool declarations ===
+PASS
+=== Test 7: pr:review adds pull-requests:write ===
+PASS
+=== Test 8: No PR tools - no pull-requests perm ===
+PASS
+=== Test 9: Steps structure ===
+PASS
+=== Test 10: workflow_path in run step ===
+PASS
+
+All 10 tests PASSED
+
+Status: PASS
+
+Notes:
+- generate_pipeline_config() returns dict with keys: name, on, permissions, env, jobs
+- name is formatted as "Agentry: <workflow_name>"
+- on block correctly handles pull_request, push, schedule, issues triggers
+- permissions are derived from tool_declarations (pr:comment/pr:review -> pull-requests:write)
+- env contains ANTHROPIC_API_KEY and GITHUB_TOKEN from secrets
+- jobs.agentry.steps includes checkout, setup-python, install agentry, and run agentry
+- workflow_path is embedded in the agentry run command in the run step

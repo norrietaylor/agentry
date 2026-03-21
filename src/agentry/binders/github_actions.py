@@ -595,18 +595,132 @@ class GitHubActionsBinder:
             ) from exc
         return response.json()
 
-    def generate_pipeline_config(self) -> dict[str, Any]:
+    def generate_pipeline_config(
+        self,
+        workflow_name: str = "agentry-workflow",
+        triggers: list[str] | None = None,
+        schedule: str | None = None,
+        tool_declarations: list[str] | None = None,
+        workflow_path: str | None = None,
+    ) -> dict[str, Any]:
         """Generate CI pipeline configuration for GitHub Actions.
 
-        Not yet implemented; will be filled in by T05.2.
+        Builds a structured dict representing a GitHub Actions workflow that
+        runs an Agentry workflow in CI.  The returned dict can be serialized
+        directly to YAML (e.g. via :func:`yaml.dump`) to produce a
+        committable ``.github/workflows/`` file.
 
-        Raises:
-            NotImplementedError: Always. Implementation is deferred to T05.2.
+        Args:
+            workflow_name: Human-readable name for the workflow, embedded in
+                the generated ``name`` field as ``"Agentry: <workflow_name>"``.
+                Defaults to ``"agentry-workflow"``.
+            triggers: List of GitHub Actions event names that should trigger the
+                workflow.  Supported values: ``"pull_request"``, ``"push"``,
+                ``"schedule"``, ``"issues"``.  Defaults to
+                ``["pull_request"]`` when not provided.
+            schedule: Cron expression used when ``"schedule"`` is in *triggers*
+                (e.g. ``"0 2 * * 1"``).  Ignored when ``"schedule"`` is not
+                present in *triggers*.
+            tool_declarations: List of tool capability strings used to derive
+                the minimal GitHub Actions ``permissions`` block.  Maps tool
+                names to required permission scopes — ``pr:comment`` and
+                ``pr:review`` require ``pull-requests: write``; all configs
+                always include ``contents: read``.  Defaults to ``[]``.
+            workflow_path: Optional path to the workflow YAML file, included in
+                the ``agentry run`` command in the generated ``run`` step.
+                Defaults to ``"workflow.yaml"`` when not provided.
+
+        Returns:
+            A dict with the following top-level keys:
+
+            - ``name`` (str): ``"Agentry: <workflow_name>"``
+            - ``on`` (dict): GitHub Actions trigger configuration.
+            - ``permissions`` (dict): Minimal permission scope mapping.
+            - ``env`` (dict): Environment variables for the ``agentry`` job,
+              including ``ANTHROPIC_API_KEY`` and ``GITHUB_TOKEN`` from secrets.
+            - ``jobs`` (dict): Single ``agentry`` job with ``runs-on`` and
+              ``steps`` (checkout, setup-python, install, run).
         """
-        raise NotImplementedError(
-            "generate_pipeline_config() is not yet implemented for the GitHub "
-            "Actions binder. This method will be implemented in T05.2."
-        )
+        if triggers is None:
+            triggers = ["pull_request"]
+        if tool_declarations is None:
+            tool_declarations = []
+        if workflow_path is None:
+            workflow_path = "workflow.yaml"
+
+        # Build the on: trigger block.
+        on_block: dict[str, Any] = {}
+        for trigger in triggers:
+            if trigger == "schedule":
+                on_block["schedule"] = [{"cron": schedule}]
+            elif trigger == "pull_request":
+                on_block["pull_request"] = {}
+            elif trigger == "push":
+                on_block["push"] = {}
+            elif trigger == "issues":
+                on_block["issues"] = {"types": ["opened", "edited"]}
+            else:
+                on_block[trigger] = {}
+
+        # Derive minimal permissions from tool declarations.
+        permissions: dict[str, str] = {"contents": "read"}
+        tool_perm_map: dict[str, dict[str, str]] = {
+            "pr:comment": {"pull-requests": "write"},
+            "pr:review": {"pull-requests": "write"},
+            "pr:": {"pull-requests": "write"},
+            "issue:": {"issues": "write"},
+            "repository:read": {"contents": "read"},
+            "repository:write": {"contents": "write"},
+            "repository:": {"contents": "read"},
+        }
+        for capability in tool_declarations:
+            for prefix, perm in tool_perm_map.items():
+                if capability == prefix or capability.startswith(prefix):
+                    for scope, level in perm.items():
+                        existing = permissions.get(scope)
+                        if existing is None or (existing == "read" and level == "write"):
+                            permissions[scope] = level
+
+        # Build the steps list.
+        steps: list[dict[str, Any]] = [
+            {
+                "name": "Checkout repository",
+                "uses": "actions/checkout@v4",
+            },
+            {
+                "name": "Set up Python",
+                "uses": "actions/setup-python@v5",
+                "with": {"python-version": "3.12"},
+            },
+            {
+                "name": "Install agentry",
+                "run": "pip install agentry",
+            },
+            {
+                "name": "Run agentry",
+                "run": f"agentry run {workflow_path}",
+                "env": {
+                    "ANTHROPIC_API_KEY": "${{ secrets.ANTHROPIC_API_KEY }}",
+                    "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+                },
+            },
+        ]
+
+        return {
+            "name": f"Agentry: {workflow_name}",
+            "on": on_block,
+            "permissions": permissions,
+            "env": {
+                "ANTHROPIC_API_KEY": "${{ secrets.ANTHROPIC_API_KEY }}",
+                "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+            },
+            "jobs": {
+                "agentry": {
+                    "runs-on": "ubuntu-latest",
+                    "steps": steps,
+                },
+            },
+        }
 
     # ------------------------------------------------------------------
     # Public properties

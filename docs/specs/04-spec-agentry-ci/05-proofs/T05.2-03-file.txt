@@ -1,0 +1,20 @@
+Type: file
+Command: grep -n "github-actions" pyproject.toml && python3 -c "from agentry.binders.github_actions import GitHubActionsBinder; print(hasattr(GitHubActionsBinder, 'generate_pipeline_config'))"
+Expected: Entry point exists in pyproject.toml and generate_pipeline_config method exists on class
+Timestamp: 2026-03-21T00:00:00Z
+
+Output:
+pyproject.toml line 57:
+github-actions = "agentry.binders.github_actions:GitHubActionsBinder"
+
+Python check:
+True
+
+Status: PASS
+
+Notes:
+- pyproject.toml contains entry point at [project.entry-points."agentry.binders"]
+- Entry point: github-actions = "agentry.binders.github_actions:GitHubActionsBinder"
+- GitHubActionsBinder.generate_pipeline_config() method exists and is callable
+- Method signature: generate_pipeline_config(self, workflow_name=..., triggers=..., schedule=..., tool_declarations=..., workflow_path=...)
+- All parameters have defaults so the method is compatible with the protocol's generate_pipeline_config(self) -> dict[str, Any] signature
