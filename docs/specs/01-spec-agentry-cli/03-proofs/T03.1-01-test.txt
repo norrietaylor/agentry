@@ -1,0 +1,52 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_local_binder.py -v
+Expected: All tests pass (38 tests covering protocol conformance, resolve_inputs, bind_tools, map_outputs, git detection, and registry)
+Timestamp: 2026-03-20T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_is_environment_binder PASSED
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_has_resolve_inputs PASSED
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_has_bind_tools PASSED
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_has_map_outputs PASSED
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_has_generate_pipeline_config PASSED
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_name PASSED
+tests/unit/test_local_binder.py::TestGeneratePipelineConfig::test_raises_not_implemented PASSED
+tests/unit/test_local_binder.py::TestGeneratePipelineConfig::test_error_message_mentions_phase_3 PASSED
+tests/unit/test_local_binder.py::TestResolveInputsString::test_string_input_passthrough PASSED
+tests/unit/test_local_binder.py::TestResolveInputsString::test_multiple_string_inputs PASSED
+tests/unit/test_local_binder.py::TestResolveInputsString::test_missing_optional_input_returns_none PASSED
+tests/unit/test_local_binder.py::TestResolveInputsString::test_missing_required_input_raises_value_error PASSED
+tests/unit/test_local_binder.py::TestResolveInputsString::test_error_message_suggests_fix PASSED
+tests/unit/test_local_binder.py::TestResolveInputsGitDiff::test_git_diff_on_non_git_dir_raises PASSED
+tests/unit/test_local_binder.py::TestResolveInputsGitDiff::test_git_diff_on_git_dir_raises_not_implemented PASSED
+tests/unit/test_local_binder.py::TestResolveInputsRepositoryRef::test_repository_ref_on_non_git_dir_raises PASSED
+tests/unit/test_local_binder.py::TestResolveInputsRepositoryRef::test_repository_ref_on_git_dir_returns_absolute_path PASSED
+tests/unit/test_local_binder.py::TestBindTools::test_supported_tools_are_bound PASSED
+tests/unit/test_local_binder.py::TestBindTools::test_bound_tool_is_callable PASSED
+tests/unit/test_local_binder.py::TestBindTools::test_unsupported_tool_raises PASSED
+tests/unit/test_local_binder.py::TestBindTools::test_unsupported_tool_error_message PASSED
+tests/unit/test_local_binder.py::TestBindTools::test_stub_raises_not_implemented_on_call PASSED
+tests/unit/test_local_binder.py::TestBindTools::test_empty_tool_list PASSED
+tests/unit/test_local_binder.py::TestMapOutputs::test_output_paths_under_agentry_runs PASSED
+tests/unit/test_local_binder.py::TestMapOutputs::test_output_key_present PASSED
+tests/unit/test_local_binder.py::TestMapOutputs::test_execution_record_key_present PASSED
+tests/unit/test_local_binder.py::TestMapOutputs::test_execution_record_filename PASSED
+tests/unit/test_local_binder.py::TestMapOutputs::test_declared_output_paths_included PASSED
+tests/unit/test_local_binder.py::TestAssertGitRepo::test_passes_for_git_directory PASSED
+tests/unit/test_local_binder.py::TestAssertGitRepo::test_raises_for_non_git_directory PASSED
+tests/unit/test_local_binder.py::TestAssertGitRepo::test_error_contains_path PASSED
+tests/unit/test_local_binder.py::TestAssertGitRepo::test_error_message_is_helpful PASSED
+tests/unit/test_local_binder.py::TestRegistry::test_discover_binders_always_has_local PASSED
+tests/unit/test_local_binder.py::TestRegistry::test_discover_binders_local_is_local_binder_class PASSED
+tests/unit/test_local_binder.py::TestRegistry::test_get_binder_default_returns_local PASSED
+tests/unit/test_local_binder.py::TestRegistry::test_get_binder_local_name_returns_local PASSED
+tests/unit/test_local_binder.py::TestRegistry::test_get_binder_unknown_name_raises_key_error PASSED
+tests/unit/test_local_binder.py::TestRegistry::test_get_binder_error_message_mentions_name PASSED
+
+============================== 38 passed in 0.16s ==============================
+
+Status: PASS
