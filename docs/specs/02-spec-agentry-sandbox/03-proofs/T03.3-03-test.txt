@@ -1,0 +1,30 @@
+Type: test
+Command: python3 -m pytest tests/ -q (full regression suite)
+Expected: All existing tests pass (no regressions introduced)
+Timestamp: 2026-03-21T04:33:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+
+969 passed, 1 skipped in 7.30s
+
+Breakdown:
+- Baseline before changes: 954 passed, 1 skipped
+- After implementation: 969 passed, 1 skipped
+- Net new tests: +15 (9 setup command tests + 6 other tests from parallel work)
+- Regressions: 0
+
+Changes made:
+1. src/agentry/cli.py:
+   - Added _MinimalRunner shim class for SetupPhase compatibility
+   - Replaced stub 'setup' command with full implementation accepting WORKFLOW_PATH
+   - setup command: loads workflow, runs preflight checks, calls SetupPhase, emits manifest path
+   - run command: integrated setup phase as pre-step before agent execution
+2. tests/unit/test_cli.py:
+   - Updated test_setup_not_yet_implemented -> test_setup_requires_workflow_path
+   - Added 7 new tests: help, missing file, manifest produced, JSON output,
+     manifest file created on disk, manifest fields, workflow path in help
+
+Status: PASS

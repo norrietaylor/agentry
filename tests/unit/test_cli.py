@@ -132,12 +132,11 @@ def test_output_format_invalid_rejected() -> None:
 # --- Stub commands ---
 
 
-def test_setup_not_yet_implemented() -> None:
-    """agentry setup must print 'Not yet implemented' and exit 0."""
+def test_setup_requires_workflow_path() -> None:
+    """agentry setup without WORKFLOW_PATH must exit non-zero with usage error."""
     runner = CliRunner()
     result = runner.invoke(cli, ["setup"])
-    assert result.exit_code == 0
-    assert "Not yet implemented" in result.output
+    assert result.exit_code != 0
 
 
 def test_ci_not_yet_implemented() -> None:
@@ -314,3 +313,160 @@ def test_cli_is_click_group() -> None:
 def test_cli_and_main_are_same_object() -> None:
     """cli must be the same object as main."""
     assert cli is main
+
+
+# ---------------------------------------------------------------------------
+# T03.3: setup command tests
+# ---------------------------------------------------------------------------
+
+# Minimal valid workflow YAML used by setup command tests.
+_SETUP_WORKFLOW_YAML = """\
+identity:
+  name: test-workflow
+  version: 1.0.0
+  description: A test workflow for setup command tests.
+
+tools:
+  capabilities: []
+
+model:
+  provider: anthropic
+  model_id: claude-sonnet-4-20250514
+  temperature: 0.2
+  max_tokens: 1024
+  system_prompt: "Test prompt"
+
+safety:
+  trust: elevated
+  resources:
+    timeout: 60
+
+output:
+  schema: {}
+
+composition:
+  steps: []
+"""
+
+
+def test_setup_help_exits_zero() -> None:
+    """agentry setup --help must exit 0."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["setup", "--help"])
+    assert result.exit_code == 0
+
+
+def test_setup_help_contains_workflow_path() -> None:
+    """agentry setup --help must mention WORKFLOW_PATH argument."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["setup", "--help"])
+    assert result.exit_code == 0
+    assert "WORKFLOW_PATH" in result.output
+
+
+def test_setup_missing_file_exits_one() -> None:
+    """agentry setup nonexistent.yaml must exit 1 with error."""
+    runner = CliRunner()
+    result = runner.invoke(cli, ["setup", "nonexistent.yaml"])
+    assert result.exit_code == 1
+    assert "not found" in result.output or "not found" in (result.output + result.output)
+
+
+def test_setup_produces_manifest_skip_preflight(tmp_path: "pytest.TempPathFactory") -> None:  # type: ignore[name-defined]
+    """agentry setup with --skip-preflight must exit 0 and emit manifest path."""
+    wf = tmp_path / "workflow.yaml"  # type: ignore[operator]
+    wf.write_text(_SETUP_WORKFLOW_YAML)  # type: ignore[union-attr]
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--output-format", "text",
+            "setup",
+            str(wf),
+            "--skip-preflight",
+        ],
+        env={"ANTHROPIC_API_KEY": ""},
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    assert "Setup complete" in result.output
+    assert "Manifest" in result.output
+
+
+def test_setup_json_output_skip_preflight(tmp_path: "pytest.TempPathFactory") -> None:  # type: ignore[name-defined]
+    """agentry setup --output-format json with --skip-preflight must emit valid JSON."""
+    wf = tmp_path / "workflow.yaml"  # type: ignore[operator]
+    wf.write_text(_SETUP_WORKFLOW_YAML)  # type: ignore[union-attr]
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--output-format", "json",
+            "setup",
+            str(wf),
+            "--skip-preflight",
+        ],
+        env={"ANTHROPIC_API_KEY": ""},
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, f"stdout: {result.output}"
+    data = json.loads(result.output)
+    assert data["status"] == "ok"
+    assert "manifest_path" in data
+
+
+def test_setup_manifest_file_created(tmp_path: "pytest.TempPathFactory") -> None:  # type: ignore[name-defined]
+    """The setup manifest JSON file must exist on disk after a successful setup."""
+    wf = tmp_path / "workflow.yaml"  # type: ignore[operator]
+    wf.write_text(_SETUP_WORKFLOW_YAML)  # type: ignore[union-attr]
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--output-format", "json",
+            "setup",
+            str(wf),
+            "--skip-preflight",
+        ],
+        env={"ANTHROPIC_API_KEY": ""},
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    import os
+    assert os.path.isfile(data["manifest_path"]), (
+        f"Expected manifest file at {data['manifest_path']}"
+    )
+
+
+def test_setup_manifest_contains_required_fields(tmp_path: "pytest.TempPathFactory") -> None:  # type: ignore[name-defined]
+    """The setup manifest JSON must contain all required fields."""
+    wf = tmp_path / "workflow.yaml"  # type: ignore[operator]
+    wf.write_text(_SETUP_WORKFLOW_YAML)  # type: ignore[union-attr]
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--output-format", "json",
+            "setup",
+            str(wf),
+            "--skip-preflight",
+        ],
+        env={"ANTHROPIC_API_KEY": ""},
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    meta = json.loads(result.output)
+    import json as _json
+    manifest = _json.loads(
+        open(meta["manifest_path"]).read()  # noqa: WPS515
+    )
+    # All spec-required fields.
+    assert manifest["workflow_name"] == "test-workflow"
+    assert manifest["workflow_version"] == "1.0.0"
+    assert "container_image" in manifest
+    assert "filesystem" in manifest
+    assert "network" in manifest
+    assert "resources" in manifest
+    assert "sandbox_tier" in manifest
+    assert "timestamp" in manifest

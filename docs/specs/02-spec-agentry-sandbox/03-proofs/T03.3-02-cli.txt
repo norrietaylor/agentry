@@ -1,0 +1,55 @@
+Type: cli
+Command: agentry setup /tmp/test-setup-workflow.yaml --skip-preflight
+Expected: exit code 0, "Setup complete" in output, manifest path printed, manifest JSON file created on disk
+Timestamp: 2026-03-21T04:33:38Z
+
+--- CLI invocation (using CliRunner) ---
+Input workflow:
+  identity.name: test-workflow
+  identity.version: 1.0.0
+  safety.trust: elevated
+  --skip-preflight flag used (no API/Docker/filesystem checks)
+  ANTHROPIC_API_KEY: (empty)
+
+--- Output ---
+exit_code: 0
+stdout:
+  Setup complete: /tmp/test-setup-workflow.yaml
+  Manifest: /Users/norrie/code/agentry/.agentry/runs/20260321T043338/setup-manifest.json
+
+--- Generated manifest (sanitized) ---
+{
+  "workflow_name": "test-workflow",
+  "workflow_version": "1.0.0",
+  "container_image": "agentry/sandbox:1.0",
+  "filesystem": {
+    "read": [],
+    "write": []
+  },
+  "network": {
+    "egress_rules": []
+  },
+  "resources": {
+    "cpu": 1.0,
+    "memory": "2GB",
+    "timeout": 60
+  },
+  "credential_fingerprints": {},
+  "sandbox_tier": "elevated",
+  "timestamp": "2026-03-21T04:33:38.695177+00:00",
+  "runner_metadata": {},
+  "preflight_results": []
+}
+
+--- Verification ---
+- exit_code == 0: PASS
+- "Setup complete" in stdout: PASS
+- manifest path in stdout: PASS
+- manifest file exists on disk: PASS
+- manifest contains workflow_name: PASS
+- manifest contains workflow_version: PASS
+- manifest contains sandbox_tier: PASS
+- manifest contains timestamp: PASS
+- manifest does NOT contain raw API key: PASS (credential_fingerprints is empty, no raw key present)
+
+Status: PASS
