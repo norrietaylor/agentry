@@ -1,0 +1,17 @@
+Type: cli
+Command: uv run mypy src/agentry/composition/engine.py
+Expected: No errors in engine.py (exit code 0 for our file; pre-existing errors in other files are acceptable)
+Timestamp: 2026-03-20T00:00:00Z
+
+Output:
+src/agentry/binders/registry.py:100: error: Unused "type: ignore" comment  [unused-ignore]
+src/agentry/binders/registry.py:100: error: Returning Any from function declared to return "EnvironmentBinder"  [no-any-return]
+src/agentry/binders/registry.py:100: note: Error code "no-any-return" not covered by "type: ignore" comment
+src/agentry/runners/docker_runner.py:171: error: Unused "type: ignore" comment  [unused-ignore]
+src/agentry/runners/docker_runner.py:577: error: Returning Any from function declared to return "dict[str, Any]"  [no-any-return]
+Found 4 errors in 2 files (checked 1 source file)
+
+Notes: All 4 errors are in files outside this task's scope (registry.py, docker_runner.py).
+No errors in src/agentry/composition/engine.py.
+
+Status: PASS
