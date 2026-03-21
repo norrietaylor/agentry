@@ -36,3 +36,40 @@ class UnsupportedToolError(BinderError):
         super().__init__(
             f"Tool {tool_name!r} is not supported by binder {binder_name!r}"
         )
+
+
+class PathTraversalError(BinderError):
+    """Raised when a repository:read request tries to escape the repository root.
+
+    Example::
+
+        raise PathTraversalError(
+            "/tmp/repo",
+            "../outside/secret.txt",
+        )
+    """
+
+    def __init__(self, repo_root: str, requested_path: str) -> None:
+        self.repo_root = repo_root
+        self.requested_path = requested_path
+        super().__init__(
+            f"Path traversal detected: {requested_path!r} resolves outside "
+            f"repository root {repo_root!r}"
+        )
+
+
+class CommandNotAllowedError(BinderError):
+    """Raised when shell:execute receives a command not in the read-only allowlist.
+
+    Example::
+
+        raise CommandNotAllowedError("rm -rf /tmp/foo")
+    """
+
+    def __init__(self, command: str) -> None:
+        self.command = command
+        super().__init__(
+            f"Command {command!r} is not in the shell:execute allowlist. "
+            "Only read-only commands are permitted: "
+            "git log, git diff, git show, git blame, ls, find, grep, cat, head, tail, wc."
+        )

@@ -1,0 +1,93 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_tool_bindings.py -v
+Expected: All 76 tests pass covering repository:read and shell:execute tool bindings with security
+Timestamp: 2026-03-20T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.7.0, cov-7.0.0
+asyncio: mode=Mode.STRICT
+
+PASSED: TestPathTraversalError::test_path_traversal_error_stores_repo_root
+PASSED: TestPathTraversalError::test_path_traversal_error_stores_requested_path
+PASSED: TestPathTraversalError::test_path_traversal_error_message_mentions_path
+PASSED: TestPathTraversalError::test_path_traversal_error_message_mentions_repo_root
+PASSED: TestCommandNotAllowedError::test_command_not_allowed_stores_command
+PASSED: TestCommandNotAllowedError::test_command_not_allowed_message_mentions_command
+PASSED: TestCommandNotAllowedError::test_command_not_allowed_message_mentions_allowlist
+PASSED: TestRepositoryReadHappyPath::test_reads_file_in_root
+PASSED: TestRepositoryReadHappyPath::test_returns_full_file_contents
+PASSED: TestRepositoryReadHappyPath::test_reads_nested_file
+PASSED: TestRepositoryReadHappyPath::test_reads_file_via_make_repository_read
+PASSED: TestRepositoryReadHappyPath::test_callable_name
+PASSED: TestRepositoryReadPathTraversal::test_dotdot_traversal_raises_path_traversal_error
+PASSED: TestRepositoryReadPathTraversal::test_dotdot_in_middle_raises_path_traversal_error
+PASSED: TestRepositoryReadPathTraversal::test_absolute_path_outside_repo_raises_path_traversal_error
+PASSED: TestRepositoryReadPathTraversal::test_error_contains_repo_root
+PASSED: TestRepositoryReadPathTraversal::test_symlink_pointing_outside_raises
+PASSED: TestRepositoryReadErrorCases::test_missing_file_raises_file_not_found
+PASSED: TestRepositoryReadErrorCases::test_directory_path_raises_is_a_directory_error
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[git log]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[git diff HEAD]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[git show abc123]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[git blame src/main.py]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[ls -la]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[find . -name '*.py']
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[grep -r pattern .]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[cat README.md]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[head -n 10 file.txt]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[tail -n 20 file.txt]
+PASSED: TestValidateShellCommand::test_allowed_command_does_not_raise[wc -l file.txt]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[rm -rf /]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[echo hello]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[curl https://example.com]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[wget https://example.com]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[python3 script.py]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[bash script.sh]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[chmod +x file]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[mv src dst]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[cp src dst]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[touch file.txt]
+PASSED: TestValidateShellCommand::test_disallowed_command_raises[mkdir -p /tmp/new]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git commit -m msg]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git push origin main]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git checkout main]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git reset --hard]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git rm file.txt]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git add .]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git fetch]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git pull]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git rebase main]
+PASSED: TestValidateShellCommand::test_disallowed_git_subcommand_raises[git merge feature]
+PASSED: TestValidateShellCommand::test_empty_command_raises
+PASSED: TestValidateShellCommand::test_git_without_subcommand_raises
+PASSED: TestValidateShellCommand::test_command_with_absolute_path_executable
+PASSED: TestValidateShellCommand::test_disallowed_executable_with_absolute_path_raises
+PASSED: TestShellExecuteHappyPath::test_runs_cat_command
+PASSED: TestShellExecuteHappyPath::test_runs_ls_command
+PASSED: TestShellExecuteHappyPath::test_runs_git_log
+PASSED: TestShellExecuteHappyPath::test_returns_stdout_as_string
+PASSED: TestShellExecuteHappyPath::test_callable_name
+PASSED: TestShellExecuteHappyPath::test_cwd_defaults_to_none
+PASSED: TestShellExecuteHappyPath::test_runs_grep_command
+PASSED: TestShellExecuteHappyPath::test_runs_head_command
+PASSED: TestShellExecuteSecurity::test_rm_command_rejected
+PASSED: TestShellExecuteSecurity::test_echo_command_rejected
+PASSED: TestShellExecuteSecurity::test_curl_command_rejected
+PASSED: TestShellExecuteSecurity::test_git_commit_rejected
+PASSED: TestShellExecuteSecurity::test_git_push_rejected
+PASSED: TestShellExecuteSecurity::test_git_checkout_rejected
+PASSED: TestShellExecuteSecurity::test_error_includes_command
+PASSED: TestShellExecuteFailure::test_nonzero_exit_raises_called_process_error
+PASSED: TestBindToolsRealImplementations::test_repository_read_from_bind_tools_is_real
+PASSED: TestBindToolsRealImplementations::test_shell_execute_from_bind_tools_is_real
+PASSED: TestBindToolsRealImplementations::test_both_tools_bound_together
+PASSED: TestBindToolsRealImplementations::test_repository_read_rejects_traversal_when_bound
+PASSED: TestBindToolsRealImplementations::test_shell_execute_rejects_disallowed_when_bound
+
+============================== 76 passed in 1.75s ==============================
+
+Status: PASS

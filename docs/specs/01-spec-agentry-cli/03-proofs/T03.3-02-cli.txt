@@ -1,0 +1,19 @@
+Type: cli
+Command: python3 -m pytest tests/ -q
+Expected: Full test suite passes with all 484 tests (331 baseline + 153 new = 484 total)
+Timestamp: 2026-03-20T00:00:00Z
+
+$ python3 -m pytest tests/ -q
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+testpaths: tests
+configfile: pyproject.toml
+
+484 passed in 6.79s
+
+Status: PASS
+Notes:
+- 331 tests passed before T03.3 implementation
+- 153 new tests added by T03.3 (76 in test_tool_bindings.py + updated test in test_local_binder.py)
+- Total: 484 tests all passing
+- No regressions introduced

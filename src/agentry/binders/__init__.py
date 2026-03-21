@@ -16,15 +16,22 @@ Public API
   declares a tool not supported by the active binder.
 """
 
-from agentry.binders.exceptions import NotAGitRepositoryError, UnsupportedToolError
+from agentry.binders.exceptions import (
+    CommandNotAllowedError,
+    NotAGitRepositoryError,
+    PathTraversalError,
+    UnsupportedToolError,
+)
 from agentry.binders.local import LocalBinder
 from agentry.binders.protocol import EnvironmentBinder
 from agentry.binders.registry import discover_binders, get_binder
 
 __all__ = [
+    "CommandNotAllowedError",
     "EnvironmentBinder",
     "LocalBinder",
     "NotAGitRepositoryError",
+    "PathTraversalError",
     "UnsupportedToolError",
     "discover_binders",
     "get_binder",
