@@ -1,0 +1,19 @@
+identity:
+  name: broken-workflow
+  version: not-a-version
+  description: A workflow with intentional validation errors for testing.
+
+inputs:
+  diff:
+    type: git-diff
+    required: true
+    ref: HEAD~1
+
+model:
+  provider: anthropic
+  extra_field: this-field-is-not-allowed
+  temperature: 0.2
+
+output:
+  budget:
+    max_findings: 0

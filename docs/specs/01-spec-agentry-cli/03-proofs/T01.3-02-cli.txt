@@ -1,0 +1,31 @@
+Type: cli
+Command: agentry --output-format text validate tests/fixtures/valid-workflow.yaml
+Expected: exit code 0, stdout contains "Validation successful"
+Timestamp: 2026-03-20T00:00:00Z
+
+--- VALID WORKFLOW RUN ---
+$ agentry --output-format text validate tests/fixtures/valid-workflow.yaml
+Validation successful: /Users/norrie/code/agentry/tests/fixtures/valid-workflow.yaml
+Exit code: 0
+
+--- INVALID WORKFLOW RUN ---
+$ agentry --output-format text validate tests/fixtures/invalid-workflow.yaml
+Error: error[value_error]: tests/fixtures/invalid-workflow.yaml: identity.version
+  Value error, Invalid semantic version: 'not-a-version'. Expected format: MAJOR.MINOR.PATCH (e.g. '1.0.0', '0.2.1-beta')
+  hint: Check the field value against the workflow specification.
+Error: error[extra_forbidden]: tests/fixtures/invalid-workflow.yaml: model.extra_field
+  Extra inputs are not permitted
+  hint: Remove the unknown field — only documented keys are allowed.
+Error: error[greater_than_equal]: tests/fixtures/invalid-workflow.yaml: output.budget.max_findings
+  Input should be greater than or equal to 1
+  hint: Refer to the Agentry workflow specification for valid values.
+Exit code: 1
+
+Observations:
+- Valid workflow: exit code 0, success message to stdout
+- Invalid workflow: exit code 1, errors to stderr with file path, field path, and remediation hints
+- Unknown key (model.extra_field) appears in error with field path
+- Semantic version error appears with field path (identity.version)
+- Each error includes a "hint:" remediation suggestion
+
+Status: PASS

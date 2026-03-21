@@ -48,8 +48,13 @@ def test_validate_command_valid_yaml() -> None:
     runner = CliRunner()
     with runner.isolated_filesystem():
         with open("test.yaml", "w") as f:
-            f.write("version: 1\nname: test\n")
-        result = runner.invoke(main, ["validate", "test.yaml"])
+            f.write(
+                "identity:\n"
+                "  name: test-workflow\n"
+                "  version: 1.0.0\n"
+                "  description: A test workflow\n"
+            )
+        result = runner.invoke(main, ["--output-format", "text", "validate", "test.yaml"])
         assert result.exit_code == 0
         assert "Validation successful" in result.output
 
