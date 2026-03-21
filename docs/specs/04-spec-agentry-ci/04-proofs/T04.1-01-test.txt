@@ -1,0 +1,40 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_ci_generate_cli.py -v --tb=short
+Expected: All 21 tests pass covering ci group structure, ci generate flags, validation logic
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False
+
+collected 21 items
+
+tests/unit/test_ci_generate_cli.py::test_ci_help_exits_zero PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_help_lists_generate PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_invoked_without_subcommand_shows_help PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_help_exits_zero PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_help_mentions_workflow_path PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_help_mentions_target PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_help_mentions_triggers PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_help_mentions_schedule PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_help_mentions_output_dir PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_help_mentions_dry_run PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_unsupported_target_exits_one PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_target_required PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_invalid_trigger_exits_one PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_multiple_triggers_valid PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_schedule_trigger_without_schedule_flag_exits_one PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_schedule_trigger_with_schedule_flag_passes_validation PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_missing_workflow_exits_one PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_composed_workflow_rejected PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_valid_workflow_exits_zero PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_dry_run_exits_zero PASSED
+tests/unit/test_ci_generate_cli.py::test_ci_generate_dry_run_mentions_workflow PASSED
+
+============================== 21 passed in 0.12s ==============================
+
+Status: PASS

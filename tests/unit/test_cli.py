@@ -139,12 +139,12 @@ def test_setup_requires_workflow_path() -> None:
     assert result.exit_code != 0
 
 
-def test_ci_not_yet_implemented() -> None:
-    """agentry ci must print 'Not yet implemented' and exit 0."""
+def test_ci_group_shows_help() -> None:
+    """agentry ci (without subcommand) must show help and exit 0."""
     runner = CliRunner()
     result = runner.invoke(cli, ["ci"])
     assert result.exit_code == 0
-    assert "Not yet implemented" in result.output
+    assert "generate" in result.output
 
 
 def test_registry_not_yet_implemented() -> None:

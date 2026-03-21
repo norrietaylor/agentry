@@ -795,24 +795,207 @@ def setup(
 
 
 # ---------------------------------------------------------------------------
-# Stub commands: ci, registry
+# ci command group
 # ---------------------------------------------------------------------------
 
+_VALID_TRIGGERS = {"pull_request", "push", "schedule", "issues"}
 
-@main.command()
+
+@main.group()
 @click.pass_context
 def ci(ctx: click.Context) -> None:  # noqa: ARG001
     """Generate CI pipeline configuration for a workflow.
 
     \b
-    Note: This command is not yet implemented.
+    Examples:
+      agentry ci generate --target github workflows/code-review.yaml
+      agentry ci generate --target github --dry-run workflows/code-review.yaml
+    """
+
+
+@ci.command("generate")
+@click.argument("workflow_path", metavar="WORKFLOW_PATH")
+@click.option(
+    "--target",
+    required=True,
+    metavar="TARGET",
+    help=(
+        "CI target platform. Only 'github' is currently supported."
+    ),
+)
+@click.option(
+    "--triggers",
+    default="pull_request",
+    show_default=True,
+    metavar="TRIGGERS",
+    help=(
+        "Comma-separated list of triggers. "
+        "Supported values: pull_request, push, schedule, issues. "
+        "Example: --triggers pull_request,push"
+    ),
+)
+@click.option(
+    "--schedule",
+    default=None,
+    metavar="CRON",
+    help=(
+        "Cron expression for schedule trigger. "
+        "Required when 'schedule' is included in --triggers."
+    ),
+)
+@click.option(
+    "--output-dir",
+    "output_dir",
+    default=".github/workflows/",
+    show_default=True,
+    type=click.Path(),
+    help="Directory to write the generated YAML file.",
+)
+@click.option(
+    "--dry-run",
+    "dry_run",
+    is_flag=True,
+    default=False,
+    help="Print generated YAML to stdout without writing to disk.",
+)
+@click.pass_context
+def ci_generate(
+    ctx: click.Context,
+    workflow_path: str,
+    target: str,
+    triggers: str,
+    schedule: str | None,
+    output_dir: str,
+    dry_run: bool,
+) -> None:
+    """Generate CI pipeline configuration for WORKFLOW_PATH.
+
+    Reads the workflow definition at WORKFLOW_PATH, validates it, and produces
+    a CI configuration file for the specified target platform.
+
+    \b
+    Exit codes:
+      0  Config generated successfully
+      1  Validation or generation error
 
     \b
     Examples:
-      agentry ci
+      agentry ci generate --target github workflows/code-review.yaml
+      agentry ci generate --target github --triggers pull_request,push workflows/code-review.yaml
+      agentry ci generate --target github --triggers pull_request,schedule --schedule '0 2 * * 1' workflows/code-review.yaml
+      agentry ci generate --target github --output-dir ci/workflows/ workflows/code-review.yaml
+      agentry ci generate --target github --dry-run workflows/code-review.yaml
     """
-    click.echo("Not yet implemented")
-    sys.exit(0)
+    import os
+
+    # Validate --target
+    if target != "github":
+        click.echo(
+            f"Error: unsupported --target value: {target!r}. Only 'github' is supported.",
+            err=True,
+        )
+        sys.exit(1)
+
+    # Parse and validate --triggers
+    trigger_list = [t.strip() for t in triggers.split(",") if t.strip()]
+    if not trigger_list:
+        click.echo("Error: --triggers must not be empty.", err=True)
+        sys.exit(1)
+
+    invalid_triggers = [t for t in trigger_list if t not in _VALID_TRIGGERS]
+    if invalid_triggers:
+        click.echo(
+            f"Error: unsupported trigger(s): {', '.join(invalid_triggers)}. "
+            f"Supported values: {', '.join(sorted(_VALID_TRIGGERS))}.",
+            err=True,
+        )
+        sys.exit(1)
+
+    # Validate --schedule requirement
+    if "schedule" in trigger_list and schedule is None:
+        click.echo(
+            "Error: --schedule is required when 'schedule' is included in --triggers.",
+            err=True,
+        )
+        sys.exit(1)
+
+    # Check workflow file exists
+    if not os.path.exists(workflow_path):
+        click.echo(f"Error: workflow file not found: {workflow_path}", err=True)
+        sys.exit(1)
+
+    # Load the workflow definition
+    try:
+        from agentry.parser import load_workflow_file
+
+        workflow = load_workflow_file(workflow_path)
+    except Exception as exc:  # noqa: BLE001
+        click.echo(f"Error: failed to load workflow: {exc}", err=True)
+        sys.exit(1)
+
+    # Reject composed workflows
+    if workflow.composition and workflow.composition.steps:
+        click.echo(
+            "Error: Composed workflow CI generation is not yet supported. "
+            "Generate CI config for each component workflow individually.",
+            err=True,
+        )
+        sys.exit(1)
+
+    # Invoke GitHubActionsBinder.generate_pipeline_config() for pipeline config dict.
+    # The actual rendering and file writing is handled in T04.2.
+    try:
+        from agentry.binders.github_actions import GitHubActionsBinder
+
+        binder = GitHubActionsBinder.__new__(GitHubActionsBinder)
+        # Store generation parameters for use by generate_pipeline_config when implemented
+        binder._workflow = workflow
+        binder._workflow_path = workflow_path
+        binder._trigger_list = trigger_list
+        binder._schedule = schedule
+        binder._output_dir = output_dir
+        binder._dry_run = dry_run
+
+        # Attempt to call generate_pipeline_config — may raise NotImplementedError
+        # until T05.2 is complete.
+        try:
+            pipeline_config = binder.generate_pipeline_config()
+        except NotImplementedError:
+            pipeline_config = None
+    except ImportError:
+        pipeline_config = None
+
+    # T04.2 will handle YAML rendering and file writing using pipeline_config.
+    # For now, emit a stub message indicating scaffolding is complete.
+    if pipeline_config is None:
+        if dry_run:
+            click.echo(
+                "# CI pipeline generation (rendering not yet implemented)\n"
+                f"# Workflow: {workflow_path}\n"
+                f"# Target: {target}\n"
+                f"# Triggers: {', '.join(trigger_list)}\n"
+            )
+        else:
+            click.echo(
+                f"CI pipeline scaffolding complete for {workflow_path}. "
+                "YAML rendering will be available after T04.2 is implemented."
+            )
+    else:
+        # T04.2 rendering path: will use pipeline_config to write or print YAML.
+        if dry_run:
+            import yaml  # type: ignore[import-untyped]
+
+            click.echo(yaml.dump(pipeline_config, default_flow_style=False))
+        else:
+            import yaml  # type: ignore[import-untyped]
+            from pathlib import Path
+
+            workflow_name = Path(workflow_path).stem
+            output_filename = f"agentry-{workflow_name}.yaml"
+            output_path = Path(output_dir) / output_filename
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(yaml.dump(pipeline_config, default_flow_style=False))
+            click.echo(f"Generated: {output_path}")
 
 
 @main.command()
