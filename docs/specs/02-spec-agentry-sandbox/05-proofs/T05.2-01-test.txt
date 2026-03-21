@@ -1,0 +1,57 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 46 items
+
+tests/unit/test_workflow_signing.py::TestSerializeBlock::test_serialize_dict_is_deterministic PASSED [  2%]
+tests/unit/test_workflow_signing.py::TestSerializeBlock::test_serialize_same_content_different_order_is_equal PASSED [  4%]
+tests/unit/test_workflow_signing.py::TestSerializeBlock::test_serialize_none_returns_bytes PASSED [  6%]
+tests/unit/test_workflow_signing.py::TestSerializeBlock::test_serialize_list_is_deterministic PASSED [  8%]
+tests/unit/test_workflow_signing.py::TestExtractSignedBlocks::test_extracts_safety_block PASSED [ 10%]
+tests/unit/test_workflow_signing.py::TestExtractSignedBlocks::test_extracts_output_side_effects PASSED [ 13%]
+tests/unit/test_workflow_signing.py::TestExtractSignedBlocks::test_missing_safety_gives_none PASSED [ 15%]
+tests/unit/test_workflow_signing.py::TestExtractSignedBlocks::test_missing_side_effects_gives_none PASSED [ 17%]
+tests/unit/test_workflow_signing.py::TestBuildSigningPayload::test_payload_is_bytes PASSED [ 19%]
+tests/unit/test_workflow_signing.py::TestBuildSigningPayload::test_payload_includes_block_names PASSED [ 21%]
+tests/unit/test_workflow_signing.py::TestBuildSigningPayload::test_payload_deterministic PASSED [ 23%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_appends_signature_block PASSED [ 26%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_signature_block_has_algorithm PASSED [ 28%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_signature_block_has_signed_blocks PASSED [ 30%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_signature_block_has_hex_signature PASSED [ 32%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_signature_hex_decodes_to_64_bytes PASSED [ 34%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_signature_block_has_iso8601_timestamp PASSED [ 36%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_returns_workflow_path PASSED [ 39%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_writes_to_output_path_when_supplied PASSED [ 41%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_original_file_unchanged_when_output_path_supplied PASSED [ 43%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_raises_file_not_found_for_missing_workflow PASSED [ 45%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_raises_file_not_found_for_missing_private_key PASSED [ 47%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_re_signing_replaces_existing_signature PASSED [ 50%]
+tests/unit/test_workflow_signing.py::TestSignWorkflow::test_signing_workflow_without_safety_block PASSED [ 52%]
+tests/unit/test_workflow_signing.py::TestDeterministicSigning::test_same_workflow_same_key_same_signature PASSED [ 54%]
+tests/unit/test_workflow_signing.py::TestDeterministicSigning::test_serialize_block_same_content_different_key_order PASSED [ 56%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_verify_passes_for_unmodified_workflow PASSED [ 58%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_verify_returns_timestamp PASSED [ 60%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_verify_raises_on_tampered_safety_block PASSED [ 63%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_verify_raises_on_tampered_side_effects PASSED [ 65%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_verify_succeeds_when_non_signed_block_modified PASSED [ 67%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_verify_raises_key_error_for_unsigned_workflow PASSED [ 69%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_verify_raises_file_not_found_for_missing_workflow PASSED [ 71%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_verify_raises_file_not_found_for_missing_public_key PASSED [ 73%]
+tests/unit/test_workflow_signing.py::TestVerifyWorkflowSignature::test_error_message_includes_timestamp PASSED [ 76%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_exits_zero_on_success PASSED [ 78%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_appends_signature_to_file PASSED [ 80%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_text_output_names_signed_file PASSED [ 82%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_text_output_mentions_signed_blocks PASSED [ 84%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_json_output_status_ok PASSED [ 86%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_json_output_contains_workflow_path PASSED [ 89%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_json_output_contains_signed_blocks PASSED [ 91%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_exits_one_when_workflow_not_found PASSED [ 93%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_exits_one_when_private_key_not_found PASSED [ 95%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_output_option_writes_to_alternate_path PASSED [ 97%]
+tests/unit/test_workflow_signing.py::TestSignCLI::test_sign_is_registered_as_subcommand PASSED [100%]
+
+============================== 46 passed in 0.46s ==============================

@@ -461,6 +461,114 @@ def keygen(
         )
 
 
+# ---------------------------------------------------------------------------
+# sign command
+# ---------------------------------------------------------------------------
+
+
+@main.command()
+@click.argument("workflow_path", metavar="WORKFLOW_PATH")
+@click.option(
+    "--private-key",
+    "private_key_path",
+    default=None,
+    metavar="PATH",
+    help=(
+        "Override the private key path. "
+        "Defaults to ~/.agentry/signing-key.pem."
+    ),
+)
+@click.option(
+    "--output",
+    "-o",
+    "output_path",
+    default=None,
+    metavar="PATH",
+    help=(
+        "Write signed workflow to PATH instead of overwriting WORKFLOW_PATH."
+    ),
+)
+@click.pass_context
+def sign(
+    ctx: click.Context,
+    workflow_path: str,
+    private_key_path: str | None,
+    output_path: str | None,
+) -> None:
+    """Sign a workflow definition's safety and output.side_effects blocks.
+
+    Reads the workflow at WORKFLOW_PATH, signs the 'safety' block and the
+    'output.side_effects' block using an Ed25519 private key, then appends a
+    'signature' block to the YAML file.  The file is updated in place unless
+    --output is supplied.
+
+    \b
+    Default private key path: ~/.agentry/signing-key.pem
+    Generate a keypair first with: agentry keygen
+
+    \b
+    Signature block fields:
+      algorithm:     "ed25519"
+      signed_blocks: ["safety", "output.side_effects"]
+      signature:     <hex-encoded Ed25519 signature>
+      timestamp:     <ISO 8601 UTC timestamp>
+
+    \b
+    Exit codes:
+      0  Workflow signed successfully
+      1  Error (workflow not found, key not found, key type mismatch)
+
+    \b
+    Examples:
+      agentry sign workflows/code-review.yaml
+      agentry sign workflows/code-review.yaml --private-key /path/to/key.pem
+      agentry sign workflows/code-review.yaml --output workflows/signed.yaml
+    """
+    import os
+    from pathlib import Path
+
+    from agentry.security.signing import sign_workflow
+
+    obj = ctx.ensure_object(dict)
+    output_format: str = obj.get("output_format", OutputFormat.TEXT)
+
+    if not os.path.exists(workflow_path):
+        click.echo(f"Error: workflow file not found: {workflow_path}", err=True)
+        sys.exit(1)
+
+    priv = Path(private_key_path) if private_key_path else None
+    out = Path(output_path) if output_path else None
+
+    try:
+        resolved_out = sign_workflow(
+            workflow_path,
+            private_key_path=priv,
+            output_path=out,
+        )
+    except FileNotFoundError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+    except ValueError as exc:
+        click.echo(f"Error: {exc}", err=True)
+        sys.exit(1)
+
+    if output_format == OutputFormat.JSON:
+        import json
+
+        click.echo(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "workflow": str(resolved_out),
+                    "signed_blocks": ["safety", "output.side_effects"],
+                }
+            )
+        )
+    else:
+        click.echo(f"Workflow signed: {resolved_out}")
+        click.echo("Signed blocks: safety, output.side_effects")
+
+
 # Keep 'cli' as an alias so that callers using 'agentry.cli:cli' also work.
 cli = main
 

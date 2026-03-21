@@ -1,0 +1,14 @@
+Type: cli
+Command: python3 -c "... sign_workflow / verify_workflow_signature smoke test ..."
+Expected: signature block appended, verification passes, deterministic signing produces same signature
+Timestamp: 2026-03-21T03:59:23Z
+
+=== agentry sign CLI demo ===
+algorithm: ed25519
+signed_blocks: ['safety', 'output.side_effects']
+signature (hex, first 32 chars): [REDACTED]...
+timestamp: 2026-03-21T03:59:23Z
+Verification: PASS (signed at 2026-03-21T03:59:23Z)
+Deterministic: PASS (same signature after re-sign)
+
+Status: PASS
