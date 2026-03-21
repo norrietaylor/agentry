@@ -1,0 +1,29 @@
+Type: cli
+Command: python3 -c "from agentry.security.preflight import PreflightChecker, PreflightResult, PreflightFailedError; ..."
+Expected: PreflightChecker collects all failures together, skip_preflight returns empty list with warning, to_manifest_entries serialises results
+Timestamp: 2026-03-20T00:00:00Z
+
+--- Output ---
+
+PreflightChecker: [FAIL] api_key - api_key failed
+PreflightChecker: [FAIL] docker - docker failed
+PreflightChecker: preflight checks skipped (--skip-preflight). This flag is intended for development and debugging only.
+run_all results: 2 total, 2 failures
+report: Preflight checks failed:
+  - api_key: api_key failed
+    Remediation: fix it
+  - docker: docker failed
+    Remediation: fix it
+
+skip_preflight results: []
+
+manifest entries: [{'name': 'api_key', 'passed': False, 'message': 'api_key failed', 'remediation': 'fix it'}, {'name': 'docker', 'passed': False, 'message': 'docker failed', 'remediation': 'fix it'}]
+
+--- Key Behaviors Demonstrated ---
+
+1. run_all() collects ALL failures (2 checks, both fail - reported together)
+2. --skip-preflight: empty results + warning log
+3. to_manifest_entries() serialises for setup manifest (name, passed, message, remediation)
+4. report_failures() formats human-readable failure output
+
+Status: PASS
