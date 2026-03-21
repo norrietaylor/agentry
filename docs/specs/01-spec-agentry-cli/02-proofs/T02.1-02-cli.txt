@@ -1,0 +1,31 @@
+Type: cli
+Command: agentry validate --help
+Expected: Shows validation-specific options and at least one usage example
+Timestamp: 2026-03-20T00:00:00Z
+Status: PASS
+
+--- OUTPUT ---
+Usage: agentry validate [OPTIONS] WORKFLOW_PATH
+
+  Validate a workflow definition YAML file.
+
+  Parses the workflow definition at WORKFLOW_PATH, validates it against the
+  Agentry schema, and reports all errors with file path and location context.
+
+  Exit codes:
+    0  Workflow is valid
+    1  Validation failed (errors written to stderr)
+
+  Examples:
+    agentry validate workflows/code-review.yaml
+    agentry validate workflows/bug-fix.yaml --verbose
+
+Options:
+  --help  Show this message and exit.
+
+Exit code: 0
+
+--- VERIFICATION ---
+PASS: Exit code is 0
+PASS: Usage example 'agentry validate workflows/code-review.yaml' present
+PASS: Exit code documentation present (0=valid, 1=failed)

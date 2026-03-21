@@ -1,0 +1,54 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_cli.py -v
+Expected: All tests pass (31 tests covering CLI group, global options, stub commands, validate, run, entry point)
+Timestamp: 2026-03-20T00:00:00Z
+Status: PASS
+
+--- OUTPUT ---
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+
+tests/unit/test_cli.py::test_cli_help PASSED
+tests/unit/test_cli.py::test_cli_version PASSED
+tests/unit/test_cli.py::test_validate_command_missing_file PASSED
+tests/unit/test_cli.py::test_validate_command_valid_yaml PASSED
+tests/unit/test_cli.py::test_run_command_missing_file PASSED
+tests/unit/test_cli.py::test_run_command_valid_yaml PASSED
+tests/unit/test_cli.py::test_cli_lists_all_subcommands PASSED
+tests/unit/test_cli.py::test_verbose_flag_accepted PASSED
+tests/unit/test_cli.py::test_config_flag_accepted PASSED
+tests/unit/test_cli.py::test_output_format_json_flag PASSED
+tests/unit/test_cli.py::test_output_format_text_flag PASSED
+tests/unit/test_cli.py::test_output_format_invalid_rejected PASSED
+tests/unit/test_cli.py::test_setup_not_yet_implemented PASSED
+tests/unit/test_cli.py::test_ci_not_yet_implemented PASSED
+tests/unit/test_cli.py::test_registry_not_yet_implemented PASSED
+tests/unit/test_cli.py::test_setup_help PASSED
+tests/unit/test_cli.py::test_ci_help PASSED
+tests/unit/test_cli.py::test_registry_help PASSED
+tests/unit/test_cli.py::test_validate_help_exits_zero PASSED
+tests/unit/test_cli.py::test_validate_help_contains_example PASSED
+tests/unit/test_cli.py::test_validate_invalid_yaml_exits_one PASSED
+tests/unit/test_cli.py::test_validate_uses_parser_when_available PASSED
+tests/unit/test_cli.py::test_validate_reports_parser_errors PASSED
+tests/unit/test_cli.py::test_validate_json_format PASSED
+tests/unit/test_cli.py::test_run_help_exits_zero PASSED
+tests/unit/test_cli.py::test_run_help_contains_example PASSED
+tests/unit/test_cli.py::test_run_invalid_input_format PASSED
+tests/unit/test_cli.py::test_run_target_option PASSED
+tests/unit/test_cli.py::test_run_stub_json_output PASSED
+tests/unit/test_cli.py::test_cli_is_click_group PASSED
+tests/unit/test_cli.py::test_cli_and_main_are_same_object PASSED
+
+============================== 31 passed in 0.08s ==============================
+
+--- VERIFICATION ---
+PASS: 31/31 tests passed
+PASS: All CLI group tests pass (help, version, global options)
+PASS: All stub command tests pass (setup, ci, registry print "Not yet implemented")
+PASS: All validate tests pass (missing file, valid YAML, parser wiring, JSON format)
+PASS: All run tests pass (missing file, input parsing, target option, JSON stub output)
+PASS: Entry point wiring tests pass (cli is Click Group, cli is main)
