@@ -1,0 +1,21 @@
+Type: file
+Command: grep -c "handle_abort\|handle_skip\|handle_retry\|CompositionAbortError\|NodeFailure\|_apply_failure_policy\|_aborted\|_node_outputs\|_fire_node_fail_callback" src/agentry/composition/engine.py
+Expected: All failure policy integration points present in engine.py
+Timestamp: 2026-03-21T00:00:00Z
+
+Integration verification:
+- Imports from failure module: CompositionAbortError, NodeFailure, handle_abort, handle_retry, handle_skip
+- _apply_failure_policy dispatches to abort/skip/retry handlers
+- _aborted flag stops scheduling loop on abort
+- _node_outputs stores NodeFailure for skip policy downstream propagation
+- _live_record passed to abort/retry handlers for status updates
+- _fire_node_fail_callback extracted as helper to reduce duplication
+- _compute_overall_status uses _aborted flag for abort vs skip distinction
+
+Key changes summary:
+1. abort: Sets _aborted=True, catches CompositionAbortError, stops scheduling
+2. skip: Calls handle_skip, stores NodeFailure in _node_outputs, continues
+3. retry: Calls handle_retry, handles both success (record result) and failure paths
+4. Overall status: FAILED if _aborted, PARTIAL if mixed completed+failed without abort
+
+Status: PASS

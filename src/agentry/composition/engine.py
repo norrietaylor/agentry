@@ -31,6 +31,13 @@ from pathlib import Path
 from typing import Any
 
 from agentry.binders.local import LocalBinder
+from agentry.composition.failure import (
+    CompositionAbortError,
+    NodeFailure,
+    handle_abort,
+    handle_retry,
+    handle_skip,
+)
 from agentry.composition.record import (
     CompositionRecord,
     CompositionStatus,
@@ -93,6 +100,15 @@ class CompositionEngine:
         self._node_statuses: dict[str, NodeStatus] = {}
         # Per-node wall-clock start times for duration reporting.
         self._node_start_times: dict[str, float] = {}
+        # Per-node outputs for data passing.  For failed nodes under the
+        # ``skip`` policy, the value is a :class:`NodeFailure` instance so
+        # downstream nodes can detect the failure.
+        self._node_outputs: dict[str, Any] = {}
+        # Live composition record reference, set during execute().  Used by
+        # the abort handler to update overall status.
+        self._live_record: CompositionRecord | None = None
+        # Flag set when abort policy triggers, to stop scheduling new nodes.
+        self._aborted: bool = False
 
     async def execute(self) -> CompositionRecord:
         """Execute all composition nodes in topological order.
@@ -120,10 +136,25 @@ class CompositionEngine:
             self._node_statuses[node_id] = NodeStatus.NOT_REACHED
             self._node_records[node_id] = None
 
+        # Create a live record that handlers (e.g. abort) can update
+        # directly during execution.
+        self._live_record = CompositionRecord(
+            node_statuses=self._node_statuses,
+            node_records=self._node_records,
+            overall_status=CompositionStatus.COMPLETED,
+            wall_clock_start=wall_clock_start,
+            wall_clock_end=0.0,
+        )
+
         sorter: TopologicalSorter[str] = TopologicalSorter(graph)
         sorter.prepare()
 
         while sorter.is_active():
+            # If an abort was triggered, stop scheduling new nodes and
+            # leave remaining nodes as NOT_REACHED.
+            if self._aborted:
+                break
+
             ready_nodes = sorter.get_ready()
             if not ready_nodes:
                 # All remaining nodes are blocked; should not happen with a
@@ -163,8 +194,8 @@ class CompositionEngine:
         """Execute a single composition node.
 
         Loads the workflow, provisions a runner, executes the agent, writes
-        the node output, and records the status.  Runner teardown is always
-        performed in a ``finally`` block.
+        the node output, and records the status.  On failure, dispatches to
+        the appropriate failure policy handler (abort, skip, or retry).
 
         Args:
             step: The composition step to execute.
@@ -219,47 +250,43 @@ class CompositionEngine:
             self._node_records[node_id] = exec_record
             if exec_record is not None and exec_record.error:
                 self._node_statuses[node_id] = NodeStatus.FAILED
-                # Fire fail callback — the execution record carried an error.
-                _duration = time.time() - self._node_start_times.get(node_id, time.time())
+                _duration = time.time() - self._node_start_times.get(
+                    node_id, time.time()
+                )
                 if self._on_node_fail is not None:
                     try:
                         self._on_node_fail(node_id, exec_record.error)
                     except Exception:  # noqa: BLE001
-                        logger.debug("on_node_fail callback raised", exc_info=True)
+                        logger.debug(
+                            "on_node_fail callback raised", exc_info=True
+                        )
             else:
                 self._node_statuses[node_id] = NodeStatus.COMPLETED
-                _duration = time.time() - self._node_start_times.get(node_id, time.time())
+                _duration = time.time() - self._node_start_times.get(
+                    node_id, time.time()
+                )
                 if self._on_node_complete is not None:
                     try:
                         self._on_node_complete(node_id, _duration)
                     except Exception:  # noqa: BLE001
-                        logger.debug("on_node_complete callback raised", exc_info=True)
+                        logger.debug(
+                            "on_node_complete callback raised", exc_info=True
+                        )
 
         except Exception as exc:
             logger.error(
                 "Node %s failed: %s", node_id, exc, exc_info=True
             )
-            # Apply failure policy (placeholder for T03 -- re-raises).
-            try:
-                self._apply_failure_policy(step, exc)
-            except Exception:
-                self._node_statuses[node_id] = NodeStatus.FAILED
-                # Create a minimal error record.
-                error_record = ExecutionRecord(error=str(exc))
-                self._node_records[node_id] = error_record
-                # Fire fail callback.
-                if self._on_node_fail is not None:
-                    try:
-                        self._on_node_fail(node_id, str(exc))
-                    except Exception:  # noqa: BLE001
-                        logger.debug("on_node_fail callback raised", exc_info=True)
+            self._apply_failure_policy(step, exc)
         finally:
             if runner_context is not None:
                 try:
                     runner.teardown(runner_context)
                 except Exception:
                     logger.warning(
-                        "Teardown failed for node %s", node_id, exc_info=True
+                        "Teardown failed for node %s",
+                        node_id,
+                        exc_info=True,
                     )
 
     def _resolve_node_inputs(self, step: CompositionStep) -> dict[str, str]:
@@ -281,17 +308,130 @@ class CompositionEngine:
     ) -> None:
         """Apply the failure policy for a failed node.
 
-        Placeholder hook for T03 failure-policy integration.  Currently
-        re-raises the original exception (abort behaviour).
+        Dispatches to the appropriate handler based on the step's
+        ``failure.mode``:
+
+        - **abort**: Marks remaining nodes as ``NOT_REACHED``, sets the
+          composition status to ``FAILED``, and sets the ``_aborted`` flag
+          so the scheduling loop stops.
+        - **skip**: Creates a :class:`NodeFailure` object, stores it in
+          ``_node_outputs`` for downstream propagation, marks the node as
+          ``FAILED``, and continues execution.
+        - **retry**: Re-executes the node up to ``max_retries`` times.  On
+          exhaustion, falls through to the ``fallback`` policy.
 
         Args:
             step: The composition step that failed.
             error: The exception raised during execution.
-
-        Raises:
-            Exception: Always re-raises the original error.
         """
-        raise error
+        node_id = step.node_id
+        policy_mode = step.failure.mode
+
+        if policy_mode == "abort":
+            self._node_statuses[node_id] = NodeStatus.FAILED
+            error_record = ExecutionRecord(error=str(error))
+            self._node_records[node_id] = error_record
+            self._fire_node_fail_callback(node_id, str(error))
+
+            try:
+                assert self._live_record is not None  # noqa: S101
+                handle_abort(node_id, error, self._live_record)
+            except CompositionAbortError:
+                # Signal the main loop to stop dispatching new nodes.
+                self._aborted = True
+
+        elif policy_mode == "skip":
+            failure = handle_skip(node_id, error, self._run_dir)
+            self._node_statuses[node_id] = NodeStatus.FAILED
+            error_record = ExecutionRecord(error=str(error))
+            self._node_records[node_id] = error_record
+            # Store the failure object so downstream nodes can detect it.
+            self._node_outputs[node_id] = failure
+            self._fire_node_fail_callback(node_id, str(error))
+            # Fire the skip callback for progress display.
+            if self._on_node_skip is not None:
+                try:
+                    self._on_node_skip(node_id)
+                except Exception:  # noqa: BLE001
+                    logger.debug(
+                        "on_node_skip callback raised", exc_info=True
+                    )
+
+        elif policy_mode == "retry":
+            assert self._live_record is not None  # noqa: S101
+            try:
+                result = handle_retry(
+                    node_id=node_id,
+                    error=error,
+                    step=step,
+                    runner_detector=self._runner_detector,
+                    workflow_loader=load_workflow_file,
+                    binder=self._binder,
+                    run_dir=self._run_dir,
+                    record=self._live_record,
+                )
+            except CompositionAbortError:
+                # Retry exhausted, fallback was abort.
+                self._node_statuses[node_id] = NodeStatus.FAILED
+                error_record = ExecutionRecord(error=str(error))
+                self._node_records[node_id] = error_record
+                self._fire_node_fail_callback(node_id, str(error))
+                self._aborted = True
+                return
+
+            # handle_retry returns ExecutionResult on success or NodeFailure
+            # if fallback was skip.
+            if isinstance(result, NodeFailure):
+                self._node_statuses[node_id] = NodeStatus.FAILED
+                error_record = ExecutionRecord(error=str(error))
+                self._node_records[node_id] = error_record
+                self._node_outputs[node_id] = result
+                self._fire_node_fail_callback(node_id, str(error))
+            else:
+                # Retry succeeded -- record the successful execution.
+                exec_record = result.execution_record
+                self._write_node_output(node_id, exec_record)
+                self._node_records[node_id] = exec_record
+                self._node_statuses[node_id] = NodeStatus.COMPLETED
+                _duration = time.time() - self._node_start_times.get(
+                    node_id, time.time()
+                )
+                if self._on_node_complete is not None:
+                    try:
+                        self._on_node_complete(node_id, _duration)
+                    except Exception:  # noqa: BLE001
+                        logger.debug(
+                            "on_node_complete callback raised",
+                            exc_info=True,
+                        )
+
+        else:
+            # Unknown policy mode -- treat as abort.
+            logger.warning(
+                "Unknown failure policy '%s' for node '%s'; treating as abort.",
+                policy_mode,
+                node_id,
+            )
+            self._node_statuses[node_id] = NodeStatus.FAILED
+            error_record = ExecutionRecord(error=str(error))
+            self._node_records[node_id] = error_record
+            self._fire_node_fail_callback(node_id, str(error))
+            self._aborted = True
+
+    def _fire_node_fail_callback(
+        self, node_id: str, error_msg: str
+    ) -> None:
+        """Fire the on_node_fail callback, swallowing any exceptions.
+
+        Args:
+            node_id: The node that failed.
+            error_msg: Human-readable error description.
+        """
+        if self._on_node_fail is not None:
+            try:
+                self._on_node_fail(node_id, error_msg)
+            except Exception:  # noqa: BLE001
+                logger.debug("on_node_fail callback raised", exc_info=True)
 
     def _build_system_prompt(self, workflow: WorkflowDefinition) -> str:
         """Build a system prompt string from the workflow definition.
@@ -361,9 +501,16 @@ class CompositionEngine:
     def _compute_overall_status(self) -> CompositionStatus:
         """Derive the overall composition status from per-node statuses.
 
+        Rules:
+
+        - ``COMPLETED``: All nodes completed successfully.
+        - ``FAILED``: An abort policy was triggered (``_aborted`` is set) or
+          all nodes failed.
+        - ``PARTIAL``: Some nodes completed and some failed under the skip
+          policy (i.e. partial results are available).
+
         Returns:
-            ``COMPLETED`` if all nodes completed, ``FAILED`` if any node
-            failed, or ``PARTIAL`` if some succeeded and some did not.
+            The appropriate :class:`CompositionStatus`.
         """
         statuses = set(self._node_statuses.values())
 
@@ -373,10 +520,13 @@ class CompositionEngine:
         if statuses == {NodeStatus.COMPLETED}:
             return CompositionStatus.COMPLETED
 
+        # If an abort was triggered, the composition is definitively failed.
+        if self._aborted:
+            return CompositionStatus.FAILED
+
         if NodeStatus.FAILED in statuses:
-            # If some completed and some failed, it could be partial,
-            # but on the happy-path-only implementation we treat any
-            # failure as overall FAILED.
+            # Some nodes completed and some failed with skip policy --
+            # this is a partial result.
             if NodeStatus.COMPLETED in statuses:
                 return CompositionStatus.PARTIAL
             return CompositionStatus.FAILED

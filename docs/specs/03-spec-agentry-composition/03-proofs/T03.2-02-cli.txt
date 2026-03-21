@@ -1,0 +1,9 @@
+Type: cli
+Command: uv run ruff check src/agentry/composition/engine.py && uv run python -c "from agentry.composition.engine import CompositionEngine; print('Import OK')"
+Expected: Lint passes, module imports successfully
+Timestamp: 2026-03-21T00:00:00Z
+
+All checks passed!
+Import OK
+
+Status: PASS
