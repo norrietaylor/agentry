@@ -646,3 +646,181 @@ class TestInProcessRunner:
 
         # 4. Teardown (should not raise)
         runner.teardown(ctx)
+
+
+# ---------------------------------------------------------------------------
+# RunnerDetector tests
+# ---------------------------------------------------------------------------
+
+
+class TestRunnerDetector:
+    """Tests for T01.6: RunnerDetector implementation."""
+
+    def test_get_runner_elevated_trust_returns_in_process_runner(self) -> None:
+        """get_runner() returns InProcessRunner when trust: elevated."""
+        from agentry.runners.detector import RunnerDetector
+
+        detector = RunnerDetector(llm_client=object())
+        safety = SafetyBlock(trust="elevated")
+
+        runner = detector.get_runner(safety)
+
+        from agentry.runners.in_process import InProcessRunner
+
+        assert isinstance(runner, InProcessRunner)
+
+    def test_get_runner_sandboxed_docker_available_returns_docker_runner(
+        self,
+    ) -> None:
+        """get_runner() returns DockerRunner when trust: sandboxed and Docker available."""
+        from unittest.mock import MagicMock
+
+        from agentry.runners.detector import RunnerDetector
+
+        # Mock Docker client
+        mock_docker_client = MagicMock()
+        mock_docker_client.ping.return_value = True
+
+        detector = RunnerDetector(
+            llm_client=object(), docker_client=mock_docker_client
+        )
+        safety = SafetyBlock(trust="sandboxed")
+
+        runner = detector.get_runner(safety)
+
+        from agentry.runners.docker_runner import DockerRunner
+
+        assert isinstance(runner, DockerRunner)
+
+    def test_get_runner_sandboxed_docker_unavailable_raises_error(
+        self,
+    ) -> None:
+        """get_runner() raises error when trust: sandboxed but Docker unavailable."""
+        from unittest.mock import MagicMock
+
+        from agentry.runners.detector import RunnerDetector
+
+        # Mock Docker client that is unavailable
+        mock_docker_client = MagicMock()
+        mock_docker_client.ping.side_effect = Exception("Docker daemon not available")
+
+        detector = RunnerDetector(
+            llm_client=object(), docker_client=mock_docker_client
+        )
+        safety = SafetyBlock(trust="sandboxed")
+
+        with pytest.raises(RuntimeError) as exc_info:
+            detector.get_runner(safety)
+
+        error_msg = str(exc_info.value)
+        assert "Docker is required for sandboxed execution" in error_msg
+        assert "trust: elevated" in error_msg
+
+    def test_get_runner_error_message_helpful(self) -> None:
+        """Error message from get_runner() provides helpful guidance."""
+        from unittest.mock import MagicMock
+
+        from agentry.runners.detector import RunnerDetector
+
+        mock_docker_client = MagicMock()
+        mock_docker_client.ping.side_effect = Exception("Cannot connect to Docker")
+
+        detector = RunnerDetector(
+            llm_client=object(), docker_client=mock_docker_client
+        )
+        safety = SafetyBlock(trust="sandboxed")
+
+        with pytest.raises(RuntimeError) as exc_info:
+            detector.get_runner(safety)
+
+        error_msg = str(exc_info.value)
+        # Check that the error message suggests remediation
+        assert "Install Docker" in error_msg or "set trust: elevated" in error_msg
+
+    def test_get_runner_default_trust_is_sandboxed(self) -> None:
+        """Default trust level is sandboxed, requiring Docker."""
+        from unittest.mock import MagicMock
+
+        from agentry.runners.detector import RunnerDetector
+
+        # Create SafetyBlock with no explicit trust (defaults to sandboxed)
+        safety = SafetyBlock()
+        assert safety.trust.value == "sandboxed"
+
+        # With unavailable Docker, should raise
+        mock_docker_client = MagicMock()
+        mock_docker_client.ping.side_effect = Exception("Docker unavailable")
+
+        detector = RunnerDetector(
+            llm_client=object(), docker_client=mock_docker_client
+        )
+
+        with pytest.raises(RuntimeError):
+            detector.get_runner(safety)
+
+    def test_get_runner_with_docker_available_succeeds(self) -> None:
+        """get_runner() succeeds with default sandboxed trust when Docker available."""
+        from unittest.mock import MagicMock
+
+        from agentry.runners.detector import RunnerDetector
+        from agentry.runners.docker_runner import DockerRunner
+
+        # Mock Docker client that responds successfully
+        mock_docker_client = MagicMock()
+        mock_docker_client.ping.return_value = True
+
+        detector = RunnerDetector(
+            llm_client=object(), docker_client=mock_docker_client
+        )
+        safety = SafetyBlock()  # Default: trust: sandboxed
+
+        runner = detector.get_runner(safety)
+
+        assert isinstance(runner, DockerRunner)
+
+    def test_elevated_trust_does_not_check_docker(self) -> None:
+        """get_runner() with elevated trust never calls docker.ping()."""
+        from unittest.mock import MagicMock
+
+        from agentry.runners.detector import RunnerDetector
+        from agentry.runners.in_process import InProcessRunner
+
+        # Mock Docker client with side effect to detect calls
+        mock_docker_client = MagicMock()
+        mock_docker_client.ping.side_effect = Exception(
+            "Should not be called for elevated trust"
+        )
+
+        detector = RunnerDetector(
+            llm_client=object(), docker_client=mock_docker_client
+        )
+        safety = SafetyBlock(trust="elevated")
+
+        # Should not raise, and should not call ping()
+        runner = detector.get_runner(safety)
+
+        assert isinstance(runner, InProcessRunner)
+        mock_docker_client.ping.assert_not_called()
+
+    def test_get_runner_returned_runner_satisfies_protocol(self) -> None:
+        """Runners returned by get_runner() satisfy RunnerProtocol."""
+        from unittest.mock import MagicMock
+
+        from agentry.runners.detector import RunnerDetector
+
+        mock_docker_client = MagicMock()
+        mock_docker_client.ping.return_value = True
+
+        detector = RunnerDetector(
+            llm_client=object(), docker_client=mock_docker_client
+        )
+
+        # Test with elevated trust
+        safety_elevated = SafetyBlock(trust="elevated")
+        runner_elevated = detector.get_runner(safety_elevated)
+        assert isinstance(runner_elevated, RunnerProtocol)
+
+        # Test with sandboxed trust
+        safety_sandboxed = SafetyBlock(trust="sandboxed")
+        runner_sandboxed = detector.get_runner(safety_sandboxed)
+        assert isinstance(runner_sandboxed, RunnerProtocol)

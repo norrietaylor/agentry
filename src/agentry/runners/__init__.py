@@ -2,7 +2,8 @@
 
 This package provides pluggable execution environment abstractions and their
 implementations. The RunnerProtocol defines the interface; DockerRunner and
-InProcessRunner are the two built-in backends.
+InProcessRunner are the two built-in backends. RunnerDetector selects the
+appropriate runner based on trust level and environment availability.
 
 Public API::
 
@@ -12,9 +13,11 @@ Public API::
         RunnerStatus,
         AgentConfig,
         ExecutionResult,
+        RunnerDetector,
     )
 """
 
+from agentry.runners.detector import RunnerDetector
 from agentry.runners.protocol import (
     AgentConfig,
     ExecutionResult,
@@ -29,4 +32,5 @@ __all__ = [
     "RunnerContext",
     "RunnerProtocol",
     "RunnerStatus",
+    "RunnerDetector",
 ]
