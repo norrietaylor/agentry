@@ -1,0 +1,79 @@
+identity:
+  name: task-decompose
+  version: 1.0.0
+  description: Break down a triaged software issue into actionable implementation tasks with priorities and effort estimates.
+
+inputs:
+  triage_result:
+    type: string
+    required: true
+    description: A triage result (JSON) containing severity, category, affected components, and reasoning.
+  repository-ref:
+    type: repository-ref
+    required: true
+    description: The repository to inspect for component context and implementation details.
+
+tools:
+  capabilities:
+    - repository:read
+
+model:
+  provider: anthropic
+  model_id: claude-sonnet-4-20250514
+  temperature: 0.2
+  max_tokens: 4096
+  system_prompt: prompts/task-decompose-system-prompt.md
+  retry:
+    max_attempts: 3
+    backoff: exponential
+
+safety:
+  resources:
+    timeout: 180
+
+output:
+  schema:
+    type: object
+    required:
+      - tasks
+    properties:
+      tasks:
+        type: array
+        items:
+          type: object
+          required:
+            - title
+            - description
+            - priority
+            - estimated_effort
+          properties:
+            title:
+              type: string
+              description: Brief, actionable task title.
+            description:
+              type: string
+              description: 2-3 sentence summary of what needs to be done.
+            priority:
+              type: string
+              enum:
+                - critical
+                - high
+                - medium
+                - low
+              description: Task priority level.
+            estimated_effort:
+              type: string
+              enum:
+                - small
+                - medium
+                - large
+                - xl
+              description: Estimated effort to complete the task.
+  side_effects:
+    - type: terminal
+      description: Print task decomposition summary to stdout
+  output_paths:
+    - task-decompose-result.json
+
+composition:
+  steps: []

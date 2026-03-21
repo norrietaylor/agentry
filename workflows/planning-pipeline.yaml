@@ -1,0 +1,48 @@
+identity:
+  name: planning-pipeline
+  version: 1.0.0
+  description: A comprehensive issue planning pipeline that triages, decomposes, and summarizes an issue into implementation tasks.
+
+inputs:
+  issue-description:
+    type: string
+    required: true
+    description: A description of the issue to plan.
+  repository-ref:
+    type: repository-ref
+    required: true
+    description: The repository to inspect for component context.
+
+model:
+  provider: anthropic
+  model_id: claude-sonnet-4-20250514
+  temperature: 0.2
+
+safety:
+  resources:
+    timeout: 600
+
+output:
+  schema:
+    type: object
+    description: Composed planning pipeline result containing triage and decomposed tasks.
+  output_paths:
+    - planning-result.json
+
+composition:
+  steps:
+    - name: triage
+      workflow: triage.yaml
+      depends_on: []
+      inputs: {}
+    - name: task-decompose
+      workflow: task-decompose.yaml
+      depends_on:
+        - triage
+      inputs:
+        triage_result: triage.output
+    - name: summary
+      workflow: triage.yaml
+      depends_on:
+        - task-decompose
+      inputs: {}
