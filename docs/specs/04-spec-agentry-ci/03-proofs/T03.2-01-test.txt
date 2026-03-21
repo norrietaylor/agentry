@@ -1,0 +1,51 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_github_token_check.py -v
+Expected: All 37 tests pass covering GitHubTokenScopeCheck
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+
+tests/unit/test_github_token_check.py::TestGitHubTokenScopeCheckName::test_name_is_github_token_scope PASSED
+tests/unit/test_github_token_check.py::TestGitHubTokenScopeCheckName::test_name_is_string PASSED
+tests/unit/test_github_token_check.py::TestSkipWhenNoToken::test_no_token_passes PASSED
+tests/unit/test_github_token_check.py::TestSkipWhenNoToken::test_no_token_message_mentions_skip PASSED
+tests/unit/test_github_token_check.py::TestSkipWhenNoToken::test_no_token_message_mentions_github_token PASSED
+tests/unit/test_github_token_check.py::TestSkipWhenNoToken::test_empty_token_passes PASSED
+tests/unit/test_github_token_check.py::TestSkipWhenNoToken::test_result_has_required_fields PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationPass::test_all_scopes_present_passes PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationPass::test_pass_message_mentions_required_scopes PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationPass::test_no_tool_declarations_passes_immediately PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationPass::test_no_tool_declarations_message_no_scopes_needed PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationFail::test_403_for_pr_comment_fails PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationFail::test_403_message_identifies_pull_requests_write PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationFail::test_403_message_identifies_pr_comment_tool PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationFail::test_403_result_not_passed PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationFail::test_403_remediation_mentions_permissions_yaml PASSED
+tests/unit/test_github_token_check.py::TestScopeVerificationFail::test_403_remediation_mentions_github_actions_workflow_yaml PASSED
+tests/unit/test_github_token_check.py::TestToolToScopeMapping::test_repository_read_maps_to_contents_read PASSED
+tests/unit/test_github_token_check.py::TestToolToScopeMapping::test_pr_comment_maps_to_pull_requests_write PASSED
+tests/unit/test_github_token_check.py::TestToolToScopeMapping::test_pr_review_maps_to_pull_requests_write PASSED
+tests/unit/test_github_token_check.py::TestToolToScopeMapping::test_repository_read_scope_references_tool PASSED
+tests/unit/test_github_token_check.py::TestToolToScopeMapping::test_pr_comment_scope_references_tool PASSED
+tests/unit/test_github_token_check.py::TestToolToScopeMapping::test_pr_review_scope_references_tool PASSED
+tests/unit/test_github_token_check.py::TestToolToScopeMapping::test_empty_tool_list_returns_empty_scopes PASSED
+tests/unit/test_github_token_check.py::TestToolToScopeMapping::test_unknown_tool_returns_no_scopes PASSED
+tests/unit/test_github_token_check.py::TestMultipleMissingScopes::test_multiple_missing_scopes_fails PASSED
+tests/unit/test_github_token_check.py::TestMultipleMissingScopes::test_pr_comment_and_pr_review_list_all_tools PASSED
+tests/unit/test_github_token_check.py::TestMultipleMissingScopes::test_all_missing_scopes_in_message PASSED
+tests/unit/test_github_token_check.py::TestNetworkErrorHandling::test_url_error_fails_gracefully PASSED
+tests/unit/test_github_token_check.py::TestNetworkErrorHandling::test_url_error_message_mentions_scope PASSED
+tests/unit/test_github_token_check.py::TestNetworkErrorHandling::test_os_error_fails_gracefully PASSED
+tests/unit/test_github_token_check.py::TestNetworkErrorHandling::test_network_error_result_has_message PASSED
+tests/unit/test_github_token_check.py::TestCheckWithNoRepository::test_no_repository_passes_optimistically PASSED
+tests/unit/test_github_token_check.py::TestResultProtocol::test_result_has_passed_field PASSED
+tests/unit/test_github_token_check.py::TestResultProtocol::test_result_has_name_field PASSED
+tests/unit/test_github_token_check.py::TestResultProtocol::test_result_has_message_field PASSED
+tests/unit/test_github_token_check.py::TestResultProtocol::test_result_has_remediation_field_on_failure PASSED
+
+============================== 37 passed in 0.31s ==============================
+
+Status: PASS
