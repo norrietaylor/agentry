@@ -1,0 +1,30 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_signing_verification.py -v --tb=short
+Expected: All 12 tests pass covering sign->verify, sign->modify->fail, no-signature->skip
+Timestamp: 2026-03-20T21:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None
+collecting ... collected 12 items
+
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_sign_then_run_setup_succeeds PASSED [  8%]
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_sign_modify_safety_then_run_setup_raises PASSED [ 16%]
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_sign_modify_side_effects_then_run_setup_raises PASSED [ 25%]
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_no_signature_skips_verification PASSED [ 33%]
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_no_workflow_path_skips_verification PASSED [ 41%]
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_missing_public_key_skips_verification PASSED [ 50%]
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_non_signed_blocks_modification_does_not_fail PASSED [ 58%]
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_signature_error_sets_result_aborted PASSED [ 66%]
+tests/unit/test_signing_verification.py::TestSetupPhaseSignatureVerification::test_error_message_includes_timestamp PASSED [ 75%]
+tests/unit/test_signing_verification.py::TestSetupSignatureErrorHierarchy::test_is_setup_phase_error_subclass PASSED [ 83%]
+tests/unit/test_signing_verification.py::TestSetupSignatureErrorHierarchy::test_message_attribute PASSED [ 91%]
+tests/unit/test_signing_verification.py::TestSetupSignatureErrorHierarchy::test_str_representation PASSED [100%]
+
+============================== 12 passed in 0.37s ==============================
+
+Status: PASS

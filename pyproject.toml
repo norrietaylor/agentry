@@ -36,6 +36,7 @@ dependencies = [
     "jsonschema>=4.0",
     "anthropic>=0.7.0",
     "cryptography>=41.0",
+    "docker>=7.0",
 ]
 
 [project.optional-dependencies]
@@ -121,4 +122,5 @@ addopts = [
 markers = [
     "unit: unit tests",
     "integration: integration tests",
+    "docker: tests requiring a running Docker daemon",
 ]

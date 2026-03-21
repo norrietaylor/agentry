@@ -7,8 +7,9 @@ sequence before agent execution begins:
 2. Provision the execution environment via runner.provision().
 3. Verify network isolation (Docker runner only).
 4. Run preflight checks.
-5. Compile the output validator schema.
-6. Generate a setup manifest and persist it.
+5. Verify workflow signature (when signature block present and public key available).
+6. Compile the output validator schema.
+7. Generate a setup manifest and persist it.
 
 The setup manifest is a JSON document capturing the full execution context
 (versions, images, mounts, network rules, resource limits, credential
@@ -40,11 +41,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from agentry.models.workflow import WorkflowDefinition
 from agentry.security.envelope import (
     PreflightCheck,
     PreflightCheckResult,
     RunnerProtocol,
+)
+from agentry.security.signing import (
+    DEFAULT_PUBLIC_KEY_PATH,
+    SignatureVerificationError,
+    verify_workflow_signature,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,6 +64,19 @@ logger = logging.getLogger(__name__)
 
 class SetupPhaseError(Exception):
     """Base exception for setup phase failures."""
+
+
+class SetupSignatureError(SetupPhaseError):
+    """Raised when workflow signature verification fails during setup.
+
+    Attributes:
+        message: Human-readable failure description including the signed
+            timestamp from the signature block.
+    """
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
 
 
 class SetupPreflightError(SetupPhaseError):
@@ -270,6 +291,13 @@ class SetupPhase:
             credentials to fingerprint.
         runs_dir: Base directory for run artefacts.  Defaults to
             ``Path.cwd() / ".agentry" / "runs"``.
+        workflow_path: Optional path to the workflow YAML file.  When
+            supplied and the YAML contains a ``signature`` block, signature
+            verification is performed before execution proceeds.  If no
+            *workflow_path* is given, signature verification is skipped.
+        public_key_path: Path to the Ed25519 public key used for signature
+            verification.  Defaults to ``DEFAULT_PUBLIC_KEY_PATH``
+            (``.agentry/public-key.pem`` relative to cwd).
     """
 
     def __init__(
@@ -280,6 +308,8 @@ class SetupPhase:
         api_key: str = "",
         extra_credentials: dict[str, str] | None = None,
         runs_dir: Path | None = None,
+        workflow_path: Path | str | None = None,
+        public_key_path: Path | None = None,
     ) -> None:
         self._workflow = workflow
         self._runner = runner
@@ -287,6 +317,8 @@ class SetupPhase:
         self._api_key = api_key
         self._extra_credentials = extra_credentials or {}
         self._runs_dir = runs_dir or (Path.cwd() / ".agentry" / "runs")
+        self._workflow_path = Path(workflow_path) if workflow_path else None
+        self._public_key_path = public_key_path or DEFAULT_PUBLIC_KEY_PATH
 
     # ------------------------------------------------------------------
     # Public API
@@ -303,6 +335,8 @@ class SetupPhase:
         Raises:
             SetupPreflightError: When a preflight check fails.
             SetupProvisionError: When ``runner.provision()`` fails.
+            SetupSignatureError: When a signature block is present but
+                verification fails.
             SchemaCompilationError: When the output schema is invalid.
         """
         result = SetupPhaseResult()
@@ -337,7 +371,10 @@ class SetupPhase:
                     remediation=check_result.remediation,
                 )
 
-        # Step 5: Compile output validator.
+        # Step 5: Verify workflow signature (opt-in; skip when no signature block).
+        self._verify_signature(result)
+
+        # Step 6: Compile output validator.
         schema = self._workflow.output.schema_def
         try:
             result.schema_compiled = _compile_schema(schema)
@@ -361,6 +398,75 @@ class SetupPhase:
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
+
+    def _verify_signature(self, result: SetupPhaseResult) -> None:
+        """Verify the workflow signature when a signature block is present.
+
+        Signature verification is opt-in.  The check is skipped when:
+        - No *workflow_path* was provided to :class:`SetupPhase`.
+        - The workflow YAML does not contain a ``signature`` block.
+
+        When a signature block **is** present and a public key exists at
+        *public_key_path*, the signature is verified.  If verification fails
+        the setup is aborted with :class:`SetupSignatureError`.
+
+        The public key is looked up at *public_key_path* (defaults to
+        ``.agentry/public-key.pem``).  If the public key file does not exist,
+        verification is also skipped (the public key must be explicitly
+        deployed to enforce signing).
+
+        Args:
+            result: The in-progress :class:`SetupPhaseResult` to mark aborted
+                on failure.
+
+        Raises:
+            SetupSignatureError: When the signature block is present but
+                invalid.
+        """
+        if self._workflow_path is None:
+            logger.debug("SetupPhase: no workflow_path provided; skipping signature verification")
+            return
+
+        if not self._workflow_path.exists():
+            logger.debug(
+                "SetupPhase: workflow_path %s not found; skipping signature verification",
+                self._workflow_path,
+            )
+            return
+
+        # Load the raw YAML to check for a signature block without going
+        # through the Pydantic model (which strips unknown keys).
+        with self._workflow_path.open() as fh:
+            raw_workflow: dict[str, Any] = yaml.safe_load(fh) or {}
+
+        if "signature" not in raw_workflow:
+            logger.debug(
+                "SetupPhase: no signature block in %s; skipping verification (opt-in)",
+                self._workflow_path,
+            )
+            return
+
+        if not self._public_key_path.exists():
+            logger.debug(
+                "SetupPhase: public key not found at %s; skipping signature verification",
+                self._public_key_path,
+            )
+            return
+
+        logger.info(
+            "SetupPhase: verifying workflow signature (public_key=%s)",
+            self._public_key_path,
+        )
+        try:
+            timestamp = verify_workflow_signature(
+                self._workflow_path,
+                public_key_path=self._public_key_path,
+            )
+            logger.info("SetupPhase: signature verified (signed_at=%s)", timestamp)
+        except SignatureVerificationError as exc:
+            result.aborted = True
+            result.error = str(exc)
+            raise SetupSignatureError(str(exc)) from exc
 
     def _verify_network_isolation(self, runner_metadata: dict[str, Any]) -> None:
         """Log network isolation metadata for Docker runners.
