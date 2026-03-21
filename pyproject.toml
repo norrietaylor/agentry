@@ -53,6 +53,9 @@ dev = [
 [project.scripts]
 agentry = "agentry.cli:cli"
 
+[project.entry-points."agentry.binders"]
+github-actions = "agentry.binders.github_actions:GitHubActionsBinder"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
