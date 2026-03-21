@@ -13,8 +13,6 @@ Tests cover:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -28,7 +26,6 @@ from agentry.runners.protocol import (
     RunnerProtocol,
     RunnerStatus,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers: minimal concrete runner
@@ -390,9 +387,17 @@ class TestPublicAPI:
         # Verify they are the same objects as from the protocol module.
         from agentry.runners.protocol import (
             AgentConfig as _AgentConfig,
+        )
+        from agentry.runners.protocol import (
             ExecutionResult as _ExecutionResult,
+        )
+        from agentry.runners.protocol import (
             RunnerContext as _RunnerContext,
+        )
+        from agentry.runners.protocol import (
             RunnerProtocol as _RunnerProtocol,
+        )
+        from agentry.runners.protocol import (
             RunnerStatus as _RunnerStatus,
         )
 
@@ -600,7 +605,6 @@ class TestInProcessRunner:
         from unittest.mock import MagicMock, patch
 
         from agentry.llm.models import LLMConfig
-
         from agentry.runners.in_process import InProcessRunner
 
         runner = InProcessRunner(llm_client=MagicMock())

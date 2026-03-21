@@ -25,7 +25,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -65,7 +64,6 @@ def _make_workflow(
     schema_def: dict[str, Any] | None = None,
 ) -> WorkflowDefinition:
     """Build a WorkflowDefinition with configurable safety settings."""
-    from pydantic import BaseModel
 
     identity = IdentityBlock(name=name, version=version, description="Test workflow")
     tools = ToolsBlock()

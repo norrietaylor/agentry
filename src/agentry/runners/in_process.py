@@ -26,13 +26,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from agentry.executor import AgentExecutor, ExecutionRecord
+from agentry.executor import AgentExecutor
 from agentry.models.safety import SafetyBlock
 from agentry.runners.protocol import (
     AgentConfig,
     ExecutionResult,
     RunnerContext,
-    RunnerProtocol,
     RunnerStatus,
 )
 

@@ -52,5 +52,10 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
+# Environment variables / secrets
+.env
+.env.*
+*.env
+
 # Project specific
 .agentry/

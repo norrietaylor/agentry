@@ -19,14 +19,11 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from agentry.security.checks import (
     AnthropicAPIKeyCheck,
     DockerAvailableCheck,
     FilesystemMountsCheck,
 )
-
 
 # ---------------------------------------------------------------------------
 # AnthropicAPIKeyCheck tests
@@ -97,22 +94,20 @@ class TestAnthropicAPIKeyCheck:
 
     def test_valid_key_passes(self) -> None:
         check = self._make_check()
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-valid-key"}):
-            with patch(
-                "urllib.request.urlopen",
-                return_value=self._make_http200_response(),
-            ):
-                result = check.run()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-valid-key"}), patch(
+            "urllib.request.urlopen",
+            return_value=self._make_http200_response(),
+        ):
+            result = check.run()
         assert result.passed is True
 
     def test_valid_key_message_confirms_accepted(self) -> None:
         check = self._make_check()
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-valid-key"}):
-            with patch(
-                "urllib.request.urlopen",
-                return_value=self._make_http200_response(),
-            ):
-                result = check.run()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-valid-key"}), patch(
+            "urllib.request.urlopen",
+            return_value=self._make_http200_response(),
+        ):
+            result = check.run()
         assert "accepted" in result.message.lower() or "valid" in result.message.lower()
 
     # ------------------------------------------------------------------
@@ -130,33 +125,30 @@ class TestAnthropicAPIKeyCheck:
 
     def test_invalid_key_401_fails(self) -> None:
         check = self._make_check()
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-revoked"}):
-            with patch(
-                "urllib.request.urlopen",
-                side_effect=self._make_http401_error(),
-            ):
-                result = check.run()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-revoked"}), patch(
+            "urllib.request.urlopen",
+            side_effect=self._make_http401_error(),
+        ):
+            result = check.run()
         assert result.passed is False
 
     def test_invalid_key_401_message_mentions_invalid_or_revoked(self) -> None:
         check = self._make_check()
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-revoked"}):
-            with patch(
-                "urllib.request.urlopen",
-                side_effect=self._make_http401_error(),
-            ):
-                result = check.run()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-revoked"}), patch(
+            "urllib.request.urlopen",
+            side_effect=self._make_http401_error(),
+        ):
+            result = check.run()
         msg = result.message.lower()
         assert "invalid" in msg or "revoked" in msg or "401" in msg
 
     def test_invalid_key_includes_remediation(self) -> None:
         check = self._make_check()
-        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-revoked"}):
-            with patch(
-                "urllib.request.urlopen",
-                side_effect=self._make_http401_error(),
-            ):
-                result = check.run()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-revoked"}), patch(
+            "urllib.request.urlopen",
+            side_effect=self._make_http401_error(),
+        ):
+            result = check.run()
         assert result.remediation != ""
 
     # ------------------------------------------------------------------
@@ -349,12 +341,11 @@ class TestDockerAvailableCheck:
 
     def test_docker_timeout_fails(self) -> None:
         check = DockerAvailableCheck(trust="sandboxed", timeout=5)
-        with patch("shutil.which", return_value="/usr/bin/docker"):
-            with patch(
-                "subprocess.run",
-                side_effect=subprocess.TimeoutExpired(cmd="docker info", timeout=5),
-            ):
-                result = check.run()
+        with patch("shutil.which", return_value="/usr/bin/docker"), patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="docker info", timeout=5),
+        ):
+            result = check.run()
         assert result.passed is False
         assert "timeout" in result.message.lower() or "timed out" in result.message.lower()
 

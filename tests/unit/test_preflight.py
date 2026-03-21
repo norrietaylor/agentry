@@ -19,7 +19,6 @@ Tests cover:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import pytest
 
@@ -28,7 +27,6 @@ from agentry.security.preflight import (
     PreflightFailedError,
     PreflightResult,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers / stub checks

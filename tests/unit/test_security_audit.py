@@ -35,14 +35,12 @@ from click.testing import CliRunner
 
 from agentry.cli import main
 from agentry.security.audit import (
-    SECURITY_FIELDS,
     FieldDiff,
     SecurityAuditReport,
     _get_nested,
     security_audit,
     security_audit_single,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

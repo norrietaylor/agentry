@@ -43,10 +43,8 @@ from agentry.runners.execution_record_writer import (
 )
 from agentry.runners.network_isolation import (
     IsolationCheckResult,
-    NetworkIsolationResult,
     NetworkIsolationVerifier,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

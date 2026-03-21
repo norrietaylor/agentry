@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import tempfile
 
 import pytest
@@ -24,10 +23,9 @@ from agentry.runners.shim import (
     DEFAULT_CONFIG_PATH,
     DEFAULT_OUTPUT_PATH,
     load_config,
-    write_result,
     run_shim,
+    write_result,
 )
-
 
 # ---------------------------------------------------------------------------
 # load_config
