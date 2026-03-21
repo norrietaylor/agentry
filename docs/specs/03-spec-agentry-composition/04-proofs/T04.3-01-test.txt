@@ -1,0 +1,47 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_data_passing.py -v
+Expected: All 29 unit tests pass
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 29 items
+
+tests/unit/test_data_passing.py::TestResolveFullOutputReference::test_resolves_to_absolute_path PASSED
+tests/unit/test_data_passing.py::TestResolveFullOutputReference::test_resolved_path_is_string PASSED
+tests/unit/test_data_passing.py::TestResolveFullOutputReference::test_result_json_exists_at_resolved_path PASSED
+tests/unit/test_data_passing.py::TestResolveFullOutputReference::test_empty_inputs_returns_empty_dict PASSED
+tests/unit/test_data_passing.py::TestResolveFullOutputReference::test_multiple_output_inputs_resolved PASSED
+tests/unit/test_data_passing.py::TestResolveFieldExtraction::test_extracted_value_written_to_temp_file PASSED
+tests/unit/test_data_passing.py::TestResolveFieldExtraction::test_extracted_integer_field PASSED
+tests/unit/test_data_passing.py::TestResolveFieldExtraction::test_missing_field_raises_data_passing_error PASSED
+tests/unit/test_data_passing.py::TestResolveFailurePropagation::test_returns_failure_json_path PASSED
+tests/unit/test_data_passing.py::TestResolveFailurePropagation::test_failure_json_contains_sentinel PASSED
+tests/unit/test_data_passing.py::TestResolveFailurePropagation::test_failure_path_preferred_over_output_path PASSED
+tests/unit/test_data_passing.py::TestResolveMissingUpstream::test_raises_when_upstream_missing PASSED
+tests/unit/test_data_passing.py::TestResolveMissingUpstream::test_error_message_includes_node_id PASSED
+tests/unit/test_data_passing.py::TestResolveMissingUpstream::test_error_message_includes_input_key PASSED
+tests/unit/test_data_passing.py::TestWriteNodeOutput::test_creates_node_directory PASSED
+tests/unit/test_data_passing.py::TestWriteNodeOutput::test_creates_result_json PASSED
+tests/unit/test_data_passing.py::TestWriteNodeOutput::test_writes_correct_json_content PASSED
+tests/unit/test_data_passing.py::TestWriteNodeOutput::test_returns_absolute_path PASSED
+tests/unit/test_data_passing.py::TestWriteNodeOutput::test_returns_path_to_result_json PASSED
+tests/unit/test_data_passing.py::TestWriteNodeOutput::test_creates_parent_directories_if_missing PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_extracts_string_field PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_extracts_integer_field PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_extracts_list_field PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_extracts_nested_dict_field PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_raises_for_missing_field PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_raises_for_missing_file PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_raises_for_invalid_json PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_raises_for_non_object_json PASSED
+tests/unit/test_data_passing.py::TestExtractField::test_error_message_includes_field_name PASSED
+
+============================== 29 passed in 0.10s ==============================
+
+Status: PASS

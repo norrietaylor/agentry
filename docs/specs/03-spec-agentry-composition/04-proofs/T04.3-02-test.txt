@@ -1,0 +1,29 @@
+Type: test
+Command: python3 -m pytest tests/integration/test_composition_pipeline.py -v
+Expected: All 11 integration tests pass (three-node pipeline A->B->C)
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 11 items
+
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_all_nodes_completed PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_overall_status_completed PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_node_a_result_json_exists PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_node_b_result_json_exists PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_node_c_result_json_exists PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_node_a_result_json_content PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_node_b_received_a_output_path PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_node_c_received_b_output_path PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_node_a_has_no_resolved_inputs PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_composition_record_saved_to_disk PASSED
+tests/integration/test_composition_pipeline.py::TestThreeNodePipeline::test_composition_record_reflects_all_nodes PASSED
+
+============================== 11 passed in 0.32s ==============================
+
+Status: PASS
