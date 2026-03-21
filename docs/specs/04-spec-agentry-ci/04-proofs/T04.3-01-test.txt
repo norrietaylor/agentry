@@ -1,0 +1,66 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_ci_generate.py -v --tb=short
+Expected: All 50 tests pass
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False
+
+tests/unit/test_ci_generate.py::TestDerivePermissions::test_empty_capabilities_returns_contents_read PASSED
+tests/unit/test_ci_generate.py::TestDerivePermissions::test_pr_comment_adds_pull_requests_write PASSED
+tests/unit/test_ci_generate.py::TestDerivePermissions::test_pr_comment_retains_contents_read PASSED
+tests/unit/test_ci_generate.py::TestDerivePermissions::test_repository_read_gives_contents_read PASSED
+tests/unit/test_ci_generate.py::TestDerivePermissions::test_repository_write_gives_contents_write PASSED
+tests/unit/test_ci_generate.py::TestDerivePermissions::test_multiple_capabilities_combined PASSED
+tests/unit/test_ci_generate.py::TestDerivePermissions::test_no_downgrade_from_write_to_read PASSED
+tests/unit/test_ci_generate.py::TestDerivePermissions::test_issue_capability_adds_issues_write PASSED
+tests/unit/test_ci_generate.py::TestBuildTriggers::test_pull_request_trigger PASSED
+tests/unit/test_ci_generate.py::TestBuildTriggers::test_push_trigger PASSED
+tests/unit/test_ci_generate.py::TestBuildTriggers::test_issues_trigger PASSED
+tests/unit/test_ci_generate.py::TestBuildTriggers::test_issues_trigger_has_types PASSED
+tests/unit/test_ci_generate.py::TestBuildTriggers::test_schedule_trigger_with_cron PASSED
+tests/unit/test_ci_generate.py::TestBuildTriggers::test_multiple_triggers PASSED
+tests/unit/test_ci_generate.py::TestBuildTriggers::test_pull_request_and_schedule PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_output_is_valid_yaml PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_name_derived_from_workflow_identity PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_pull_request_trigger_in_on_block PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_push_trigger_in_on_block PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_schedule_trigger_in_on_block_with_cron PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_issues_trigger_in_on_block PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_multiple_triggers_both_present PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_pr_comment_tool_grants_pull_requests_write PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_repository_read_only_gives_contents_read PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_jobs_section_present PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_agentry_job_runs_on_ubuntu_latest PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_run_step_includes_agentry_run_with_workflow_path PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_run_step_env_includes_anthropic_api_key_secret PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_run_step_env_includes_github_token_secret PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_steps_include_checkout PASSED
+tests/unit/test_ci_generate.py::TestRenderPipelineYaml::test_steps_include_setup_python PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_prints_valid_yaml_to_stdout PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_output_contains_name_field PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_output_contains_jobs_section PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_does_not_write_file PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_pull_request_trigger_yaml_has_on_pull_request PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_push_trigger_yaml_has_on_push PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_schedule_trigger_yaml_has_on_schedule_with_cron PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_issues_trigger_yaml_has_on_issues PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateDryRun::test_dry_run_multiple_triggers_both_in_on_block PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateFileOutput::test_file_output_default_dir PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateFileOutput::test_file_output_content_is_valid_yaml PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateFileOutput::test_file_output_path_mentioned_in_stdout PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateFileOutput::test_file_output_creates_parent_directory PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateFileOutput::test_file_output_pr_comment_permission_in_file PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateFileOutput::test_file_output_repo_read_only_permission_in_file PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateErrors::test_composed_workflow_rejected_with_error_message PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateErrors::test_missing_schedule_flag_when_schedule_trigger PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateErrors::test_unsupported_target_exits_one PASSED
+tests/unit/test_ci_generate.py::TestCiGenerateErrors::test_unsupported_target_mentions_github PASSED
+
+============================== 50 passed in 0.21s ==============================
+
+Status: PASS
