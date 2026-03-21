@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from agentry.binders.local import LocalBinder
+from agentry.composition import data_passing as _data_passing
 from agentry.composition.failure import (
     CompositionAbortError,
     NodeFailure,
@@ -100,10 +101,14 @@ class CompositionEngine:
         self._node_statuses: dict[str, NodeStatus] = {}
         # Per-node wall-clock start times for duration reporting.
         self._node_start_times: dict[str, float] = {}
-        # Per-node outputs for data passing.  For failed nodes under the
-        # ``skip`` policy, the value is a :class:`NodeFailure` instance so
-        # downstream nodes can detect the failure.
-        self._node_outputs: dict[str, Any] = {}
+        # Per-node output paths for file-based data passing.
+        # Populated with the Path to result.json for successfully completed
+        # nodes so downstream nodes can read their outputs.
+        self._node_outputs: dict[str, Path] = {}
+        # Per-node failure paths for skip-policy failures.
+        # Populated with the Path to result.json (which contains the
+        # NodeFailure JSON) when a node fails under the skip policy.
+        self._node_failures: dict[str, Path] = {}
         # Live composition record reference, set during execute().  Used by
         # the abort handler to update overall status.
         self._live_record: CompositionRecord | None = None
@@ -246,6 +251,12 @@ class CompositionEngine:
             # Write node output to disk.
             self._write_node_output(node_id, exec_record)
 
+            # Store the output path so downstream nodes can resolve inputs
+            # via file-based data passing.
+            self._node_outputs[node_id] = (
+                self._run_dir / node_id / "result.json"
+            )
+
             # Record success.
             self._node_records[node_id] = exec_record
             if exec_record is not None and exec_record.error:
@@ -290,18 +301,26 @@ class CompositionEngine:
                     )
 
     def _resolve_node_inputs(self, step: CompositionStep) -> dict[str, str]:
-        """Resolve inputs for a composition node.
+        """Resolve inputs for a composition node using file-based data passing.
 
-        Placeholder hook for T04 data-passing integration.  Currently
-        returns an empty dict.
+        Delegates to :func:`agentry.composition.data_passing.resolve_node_inputs`
+        to translate ``<node_id>.output`` and ``<node_id>.output.<field>``
+        source expressions into absolute file-path strings.
 
         Args:
             step: The composition step whose inputs should be resolved.
 
         Returns:
-            An empty dict (to be replaced by T04 sub-tasks).
+            A mapping from input key to absolute file path string.  Returns
+            an empty dict when the step declares no inputs.
         """
-        return {}
+        if not step.inputs:
+            return {}
+        return _data_passing.resolve_node_inputs(
+            step=step,
+            node_outputs=self._node_outputs,
+            node_failures=self._node_failures,
+        )
 
     def _apply_failure_policy(
         self, step: CompositionStep, error: Exception
@@ -345,8 +364,13 @@ class CompositionEngine:
             self._node_statuses[node_id] = NodeStatus.FAILED
             error_record = ExecutionRecord(error=str(error))
             self._node_records[node_id] = error_record
-            # Store the failure object so downstream nodes can detect it.
-            self._node_outputs[node_id] = failure
+            # Store the failure path so downstream nodes can detect it via
+            # file-based data passing.  handle_skip saves to
+            # <run_dir>/<node_id>/result.json.
+            self._node_failures[node_id] = (
+                self._run_dir / node_id / "result.json"
+            )
+            del failure  # NodeFailure object no longer needed in-memory.
             self._fire_node_fail_callback(node_id, str(error))
             # Fire the skip callback for progress display.
             if self._on_node_skip is not None:
@@ -385,12 +409,20 @@ class CompositionEngine:
                 self._node_statuses[node_id] = NodeStatus.FAILED
                 error_record = ExecutionRecord(error=str(error))
                 self._node_records[node_id] = error_record
-                self._node_outputs[node_id] = result
+                # Store the failure path (handle_retry with skip fallback
+                # saves the NodeFailure to <run_dir>/<node_id>/result.json).
+                self._node_failures[node_id] = (
+                    self._run_dir / node_id / "result.json"
+                )
                 self._fire_node_fail_callback(node_id, str(error))
             else:
                 # Retry succeeded -- record the successful execution.
                 exec_record = result.execution_record
                 self._write_node_output(node_id, exec_record)
+                # Store the output path for downstream data passing.
+                self._node_outputs[node_id] = (
+                    self._run_dir / node_id / "result.json"
+                )
                 self._node_records[node_id] = exec_record
                 self._node_statuses[node_id] = NodeStatus.COMPLETED
                 _duration = time.time() - self._node_start_times.get(

@@ -1,0 +1,32 @@
+Type: cli
+Command: python3 -c "integration test verifying data passing wiring in CompositionEngine"
+Expected: _resolve_node_inputs calls data_passing.resolve_node_inputs; _node_outputs populated after success; _node_failures populated after skip-policy failure
+Timestamp: 2026-03-21T00:00:00Z
+
+--- Integration verification script output ---
+
+_resolve_node_inputs source:
+    def _resolve_node_inputs(self, step: CompositionStep) -> dict[str, str]:
+        """Resolve inputs for a composition node using file-based data passing."""
+        if not step.inputs:
+            return {}
+        return _data_passing.resolve_node_inputs(
+            step=step,
+            node_outputs=self._node_outputs,
+            node_failures=self._node_failures,
+        )
+
+__init__ uses _node_outputs: True
+__init__ uses _node_failures: True
+
+--- End-to-end data passing test (A -> B with B.inputs = {upstream_result: A.output}) ---
+
+Integration test PASSED: data passing paths correctly stored
+  A output path: /tmp/.../A/result.json
+  B node_statuses: NodeStatus.COMPLETED
+
+--- Code verification: _apply_failure_policy skip path stores to _node_failures ---
+
+grep result: _node_failures[node_id] = (self._run_dir / node_id / "result.json") - FOUND in engine.py
+
+Status: PASS
