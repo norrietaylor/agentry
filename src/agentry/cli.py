@@ -942,60 +942,27 @@ def ci_generate(
         )
         sys.exit(1)
 
-    # Invoke GitHubActionsBinder.generate_pipeline_config() for pipeline config dict.
-    # The actual rendering and file writing is handled in T04.2.
-    try:
-        from agentry.binders.github_actions import GitHubActionsBinder
+    # Render GitHub Actions YAML from the workflow definition.
+    from agentry.ci.github_actions_renderer import render_pipeline_yaml
 
-        binder = GitHubActionsBinder.__new__(GitHubActionsBinder)
-        # Store generation parameters for use by generate_pipeline_config when implemented
-        binder._workflow = workflow
-        binder._workflow_path = workflow_path
-        binder._trigger_list = trigger_list
-        binder._schedule = schedule
-        binder._output_dir = output_dir
-        binder._dry_run = dry_run
+    yaml_content = render_pipeline_yaml(
+        workflow=workflow,
+        workflow_path=workflow_path,
+        trigger_list=trigger_list,
+        schedule=schedule,
+    )
 
-        # Attempt to call generate_pipeline_config — may raise NotImplementedError
-        # until T05.2 is complete.
-        try:
-            pipeline_config = binder.generate_pipeline_config()
-        except NotImplementedError:
-            pipeline_config = None
-    except ImportError:
-        pipeline_config = None
-
-    # T04.2 will handle YAML rendering and file writing using pipeline_config.
-    # For now, emit a stub message indicating scaffolding is complete.
-    if pipeline_config is None:
-        if dry_run:
-            click.echo(
-                "# CI pipeline generation (rendering not yet implemented)\n"
-                f"# Workflow: {workflow_path}\n"
-                f"# Target: {target}\n"
-                f"# Triggers: {', '.join(trigger_list)}\n"
-            )
-        else:
-            click.echo(
-                f"CI pipeline scaffolding complete for {workflow_path}. "
-                "YAML rendering will be available after T04.2 is implemented."
-            )
+    if dry_run:
+        click.echo(yaml_content)
     else:
-        # T04.2 rendering path: will use pipeline_config to write or print YAML.
-        if dry_run:
-            import yaml  # type: ignore[import-untyped]
+        from pathlib import Path
 
-            click.echo(yaml.dump(pipeline_config, default_flow_style=False))
-        else:
-            import yaml  # type: ignore[import-untyped]
-            from pathlib import Path
-
-            workflow_name = Path(workflow_path).stem
-            output_filename = f"agentry-{workflow_name}.yaml"
-            output_path = Path(output_dir) / output_filename
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(yaml.dump(pipeline_config, default_flow_style=False))
-            click.echo(f"Generated: {output_path}")
+        workflow_name = Path(workflow_path).stem
+        output_filename = f"agentry-{workflow_name}.yaml"
+        output_path = Path(output_dir) / output_filename
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(yaml_content)
+        click.echo(f"Generated: {output_path}")
 
 
 @main.command()

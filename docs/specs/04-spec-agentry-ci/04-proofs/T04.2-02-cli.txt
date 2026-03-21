@@ -1,0 +1,30 @@
+Type: cli
+Command: agentry ci generate --target github --dry-run /tmp/test-workflow.yaml
+Expected: Valid GitHub Actions YAML output with name, on, permissions, jobs sections
+Timestamp: 2026-03-21T17:30:00Z
+Status: PASS
+
+name: 'Agentry: code-review'
+'on':
+  pull_request: {}
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  agentry:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install agentry
+      run: pip install agentry
+    - name: Run agentry
+      run: agentry run /tmp/test-workflow.yaml
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
