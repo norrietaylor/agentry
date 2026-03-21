@@ -1,0 +1,12 @@
+Type: cli
+Command: agentry --output-format text run workflows/planning-pipeline.yaml --skip-preflight --node nonexistent
+Expected: Error message listing available nodes, exit code 1
+Timestamp: 2026-03-20T00:00:00Z
+
+--- OUTPUT (stderr) ---
+Error: --node 'nonexistent' not found in composition. Available nodes: triage, task-decompose, summary
+
+--- EXIT CODE ---
+1
+
+Status: PASS

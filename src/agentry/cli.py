@@ -345,6 +345,17 @@ def validate(ctx: click.Context, workflow_paths: tuple[str, ...], security_audit
         "filesystem mount verification). Intended for development only."
     ),
 )
+@click.option(
+    "--node",
+    "node",
+    default=None,
+    type=str,
+    metavar="NODE_ID",
+    help=(
+        "Execute only the specified node in isolation (composition workflows only). "
+        "No upstream data is provided and no downstream propagation occurs."
+    ),
+)
 @click.pass_context
 def run(
     ctx: click.Context,
@@ -352,6 +363,7 @@ def run(
     inputs: tuple[str, ...],
     target: str,
     skip_preflight: bool,
+    node: str | None,
 ) -> None:
     """Execute a workflow definition against a local repository.
 
@@ -363,6 +375,7 @@ def run(
       --input KEY=VALUE       Pass input value (repeatable)
       --target PATH           Repository to run against (default: cwd)
       --skip-preflight        Skip preflight checks (development only)
+      --node NODE_ID          Execute only the specified node in isolation
 
     \b
     Examples:
@@ -372,6 +385,7 @@ def run(
       agentry run workflows/bug-fix.yaml \\
           --input issue-description='Login fails' \\
           --target /path/to/repo
+      agentry run workflows/planning-pipeline.yaml --node triage
     """
     import os
     import signal
@@ -415,11 +429,20 @@ def run(
 
     signal.signal(signal.SIGINT, _handle_interrupt)
 
+    # Attempt to load the workflow so we can detect composition mode.
+    # This also powers the setup phase below.
+    _loaded_workflow = None
+    try:
+        from agentry.parser import load_workflow_file
+
+        _loaded_workflow = load_workflow_file(workflow_path)
+    except Exception:  # noqa: BLE001
+        logger.debug("Could not load workflow for composition detection.", exc_info=True)
+
     # Run setup phase before agent execution when workflow is loadable.
     # This validates the environment, runs preflight checks, and produces
     # the setup manifest regardless of trust level.
     try:
-        from agentry.parser import load_workflow_file
         from agentry.security.checks import (
             AnthropicAPIKeyCheck,
             DockerAvailableCheck,
@@ -427,22 +450,24 @@ def run(
         )
         from agentry.security.setup import SetupPhase, SetupPhaseError, SetupPreflightError
 
-        _workflow = load_workflow_file(workflow_path)
+        if _loaded_workflow is None:
+            raise ImportError("Workflow not loaded")
+
         _api_key = os.environ.get("ANTHROPIC_API_KEY", "")
 
         _checks = []
         if not skip_preflight:
             _checks = [
                 AnthropicAPIKeyCheck(),
-                DockerAvailableCheck(trust=_workflow.safety.trust.value),
+                DockerAvailableCheck(trust=_loaded_workflow.safety.trust.value),
                 FilesystemMountsCheck(
-                    read_paths=list(_workflow.safety.filesystem.read),
-                    write_paths=list(_workflow.safety.filesystem.write),
+                    read_paths=list(_loaded_workflow.safety.filesystem.read),
+                    write_paths=list(_loaded_workflow.safety.filesystem.write),
                 ),
             ]
         _runner = _MinimalRunner()
         _phase = SetupPhase(
-            workflow=_workflow,
+            workflow=_loaded_workflow,
             runner=_runner,
             preflight_checks=_checks,
             api_key=_api_key,
@@ -467,6 +492,122 @@ def run(
             exc_info=True,
         )
 
+    # Detect composition workflow and dispatch accordingly.
+    _is_composition = (
+        _loaded_workflow is not None
+        and bool(_loaded_workflow.composition.steps)
+    )
+
+    if node is not None and not _is_composition:
+        click.echo(
+            "Error: --node flag is only valid for composition workflows "
+            "(workflows with a non-empty composition.steps block).",
+            err=True,
+        )
+        sys.exit(1)
+
+    if _is_composition:
+        # Dispatch through CompositionEngine for composed workflows.
+        import asyncio
+        import datetime
+        from pathlib import Path
+
+        run_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")
+        run_dir = Path(target) / ".agentry" / "runs" / run_id
+        workflow_base_dir = Path(workflow_path).parent
+
+        assert _loaded_workflow is not None  # guaranteed by _is_composition check
+
+        try:
+            from agentry.binders.local import LocalBinder
+            from agentry.composition.engine import CompositionEngine
+            from agentry.runners.detector import RunnerDetector
+
+            _detector = RunnerDetector(llm_client=None)
+            _binder = LocalBinder()
+
+            if node is not None:
+                # Single-node isolation: build a single-step composition.
+                from agentry.models.composition import CompositionBlock, CompositionStep
+
+                _matching = [
+                    s for s in _loaded_workflow.composition.steps
+                    if s.node_id == node
+                ]
+                if not _matching:
+                    click.echo(
+                        f"Error: --node {node!r} not found in composition. "
+                        f"Available nodes: "
+                        f"{', '.join(_loaded_workflow.composition.node_ids)}",
+                        err=True,
+                    )
+                    sys.exit(1)
+                _isolated_step = _matching[0]
+                _isolated_composition = CompositionBlock(
+                    steps=[
+                        CompositionStep(
+                            name=_isolated_step.name,
+                            workflow=_isolated_step.workflow,
+                            id=_isolated_step.id,
+                            failure=_isolated_step.failure,
+                            # No depends_on — isolation means no upstream
+                            depends_on=[],
+                            # No inputs — isolation means no upstream data
+                            inputs={},
+                        )
+                    ]
+                )
+                _composition_to_run = _isolated_composition
+            else:
+                _composition_to_run = _loaded_workflow.composition
+
+            _engine = CompositionEngine(
+                composition=_composition_to_run,
+                runner_detector=_detector,
+                binder=_binder,
+                run_dir=run_dir,
+                workflow_base_dir=workflow_base_dir,
+            )
+            _composition_record = asyncio.run(_engine.execute())
+
+            if output_format == OutputFormat.JSON:
+                import json
+
+                click.echo(json.dumps(_composition_record.to_dict()))
+            else:
+                _status = _composition_record.overall_status.value
+                click.echo(f"Composition status: {_status}")
+                click.echo(
+                    f"Duration: {_composition_record.wall_clock_seconds:.2f}s"
+                )
+                for _nid, _nstatus in _composition_record.node_statuses.items():
+                    click.echo(f"  [{_nstatus.value}] {_nid}")
+        except ImportError:
+            # CompositionEngine not yet implemented — emit a stub response.
+            logger.debug("CompositionEngine not available; emitting stub output.")
+            if output_format == OutputFormat.JSON:
+                import json
+
+                stub: dict[str, object] = {
+                    "status": "not_implemented",
+                    "mode": "composition",
+                    "workflow": workflow_path,
+                    "inputs": parsed_inputs,
+                    "target": target,
+                    "node": node,
+                }
+                click.echo(json.dumps(stub))
+            else:
+                click.echo(f"Running composition workflow: {workflow_path}")
+                click.echo(f"Target: {target}")
+                if node:
+                    click.echo(f"Node: {node}")
+                click.echo("(CompositionEngine not yet implemented)")
+        except Exception as exc:  # noqa: BLE001
+            click.echo(f"Error: composition execution failed: {exc}", err=True)
+            sys.exit(1)
+        return
+
     # Attempt to run via the execution engine; fall back to a stub message.
     try:
         from agentry.executor import run_workflow
@@ -489,13 +630,13 @@ def run(
         if output_format == OutputFormat.JSON:
             import json
 
-            stub: dict[str, object] = {
+            stub2: dict[str, object] = {
                 "status": "not_implemented",
                 "workflow": workflow_path,
                 "inputs": parsed_inputs,
                 "target": target,
             }
-            click.echo(json.dumps(stub))
+            click.echo(json.dumps(stub2))
         else:
             click.echo(f"Running workflow: {workflow_path}")
             click.echo(f"Target: {target}")
@@ -559,7 +700,7 @@ def setup(
 
     # Load the workflow definition.
     try:
-        from agentry.parser import WorkflowLoadError, load_workflow_file
+        from agentry.parser import load_workflow_file
 
         workflow = load_workflow_file(workflow_path)
     except Exception as exc:  # noqa: BLE001

@@ -1,0 +1,9 @@
+Type: cli
+Command: agentry run workflows/bug-fix.yaml --skip-preflight
+Expected: Non-composition workflow runs through existing single-agent execution path (JSON stub response)
+Timestamp: 2026-03-20T00:00:00Z
+
+--- OUTPUT ---
+{"status": "not_implemented", "workflow": "workflows/bug-fix.yaml", "inputs": {}, "target": "."}
+
+Status: PASS

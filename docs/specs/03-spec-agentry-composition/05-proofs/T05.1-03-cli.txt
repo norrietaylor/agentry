@@ -1,0 +1,12 @@
+Type: cli
+Command: agentry run workflows/bug-fix.yaml --skip-preflight --node somethingnew
+Expected: Error message stating --node flag is only valid for composition workflows, exit code 1
+Timestamp: 2026-03-20T00:00:00Z
+
+--- OUTPUT (stderr) ---
+Error: --node flag is only valid for composition workflows (workflows with a non-empty composition.steps block).
+
+--- EXIT CODE ---
+1
+
+Status: PASS

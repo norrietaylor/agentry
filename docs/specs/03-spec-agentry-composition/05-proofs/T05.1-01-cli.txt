@@ -1,0 +1,43 @@
+Type: cli
+Command: agentry run --help
+Expected: --node flag appears in help output with correct description
+Timestamp: 2026-03-20T00:00:00Z
+
+--- OUTPUT ---
+Usage: agentry run [OPTIONS] WORKFLOW_PATH
+
+  Execute a workflow definition against a local repository.
+
+  Resolves abstract workflow inputs (git-diff, repository-ref) from TARGET,
+  calls the configured LLM, validates output, and emits results.
+
+  Options:
+    --input KEY=VALUE       Pass input value (repeatable)
+    --target PATH           Repository to run against (default: cwd)
+    --skip-preflight        Skip preflight checks (development only)
+    --node NODE_ID          Execute only the specified node in isolation
+
+  Examples:
+    agentry run workflows/code-review.yaml --input diff=HEAD~1
+    agentry run workflows/code-review.yaml --input diff=HEAD~1 --target /path/to/repo
+    agentry run workflows/code-review.yaml --skip-preflight
+    agentry run workflows/bug-fix.yaml \
+        --input issue-description='Login fails' \
+        --target /path/to/repo
+    agentry run workflows/planning-pipeline.yaml --node triage
+
+Options:
+  -i, --input KEY=VALUE  Pass an input to the workflow as KEY=VALUE.
+                         Repeatable: --input diff=HEAD~1 --input
+                         repo=/path/to/repo
+  -t, --target PATH      Working directory for local execution. Defaults to
+                         the current directory.  [default: .]
+  --skip-preflight       Skip preflight checks (API key validation, Docker
+                         availability, filesystem mount verification).
+                         Intended for development only.
+  --node NODE_ID         Execute only the specified node in isolation
+                         (composition workflows only). No upstream data is
+                         provided and no downstream propagation occurs.
+  --help                 Show this message and exit.
+
+Status: PASS
