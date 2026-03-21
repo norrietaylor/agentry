@@ -1,0 +1,25 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_cli_composition.py -v
+Expected: 6 tests pass (all composition CLI integration tests)
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 6 items
+
+tests/unit/test_cli_composition.py::test_composition_detection_calls_engine PASSED [ 16%]
+tests/unit/test_cli_composition.py::test_single_agent_fallback_uses_executor PASSED [ 33%]
+tests/unit/test_cli_composition.py::test_node_flag_with_composition_isolates_node PASSED [ 50%]
+tests/unit/test_cli_composition.py::test_node_flag_without_composition_emits_error PASSED [ 66%]
+tests/unit/test_cli_composition.py::test_json_output_format_contains_composition_record_fields PASSED [ 83%]
+tests/unit/test_cli_composition.py::test_text_output_format_contains_per_node_status PASSED [100%]
+
+============================== 6 passed in 0.36s ==============================
+EXIT_CODE=0
+
+Status: PASS
