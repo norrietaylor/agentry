@@ -1,0 +1,12 @@
+Type: cli
+Command: python3 -m mypy src/agentry/composition/failure.py
+Expected: No errors in failure.py (pre-existing docker_runner errors only)
+Timestamp: 2026-03-21T00:00:00Z
+Status: PASS
+
+Output:
+src/agentry/runners/docker_runner.py:171: error: Unused "type: ignore" comment  [unused-ignore]
+src/agentry/runners/docker_runner.py:577: error: Returning Any from function declared to return "dict[str, Any]"  [no-any-return]
+Found 2 errors in 1 file (checked 1 source file)
+
+Note: All 2 errors are in docker_runner.py (pre-existing), not in failure.py.
