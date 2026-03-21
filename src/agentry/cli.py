@@ -369,6 +369,98 @@ def registry(ctx: click.Context) -> None:  # noqa: ARG001
     sys.exit(0)
 
 
+# ---------------------------------------------------------------------------
+# keygen command
+# ---------------------------------------------------------------------------
+
+
+@main.command()
+@click.option(
+    "--private-key",
+    "private_key_path",
+    default=None,
+    metavar="PATH",
+    help=(
+        "Override the private key output path. "
+        "Defaults to ~/.agentry/signing-key.pem."
+    ),
+)
+@click.option(
+    "--public-key",
+    "public_key_path",
+    default=None,
+    metavar="PATH",
+    help=(
+        "Override the public key output path. "
+        "Defaults to .agentry/public-key.pem (in the current directory)."
+    ),
+)
+@click.pass_context
+def keygen(
+    ctx: click.Context,
+    private_key_path: str | None,
+    public_key_path: str | None,
+) -> None:
+    """Generate an Ed25519 signing keypair for workflow signing.
+
+    The private key is saved outside the project directory so it is never
+    accidentally committed to version control.  The public key is saved
+    inside the project so it can be shared with collaborators via git.
+
+    \b
+    Default paths:
+      Private key: ~/.agentry/signing-key.pem  (owner-only, mode 0600)
+      Public key:  .agentry/public-key.pem     (commit this to your repo)
+
+    \b
+    Examples:
+      agentry keygen
+      agentry keygen --public-key .agentry/my-key.pem
+    """
+    from pathlib import Path
+
+    from agentry.security.signing import generate_keypair
+
+    obj = ctx.ensure_object(dict)
+    output_format: str = obj.get("output_format", OutputFormat.TEXT)
+
+    priv = Path(private_key_path) if private_key_path else None
+    pub = Path(public_key_path) if public_key_path else None
+
+    try:
+        resolved_priv, resolved_pub = generate_keypair(
+            private_key_path=priv,
+            public_key_path=pub,
+        )
+    except OSError as exc:
+        click.echo(f"Error: could not write key files: {exc}", err=True)
+        sys.exit(1)
+
+    if output_format == OutputFormat.JSON:
+        import json
+
+        click.echo(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "private_key": str(resolved_priv),
+                    "public_key": str(resolved_pub),
+                }
+            )
+        )
+    else:
+        click.echo(f"Private key written to: {resolved_priv}")
+        click.echo(f"Public key written to:  {resolved_pub}")
+        click.echo("")
+        click.echo("Next steps:")
+        click.echo(f"  git add {resolved_pub}")
+        click.echo("  git commit -m 'chore: add agentry public signing key'")
+        click.echo("")
+        click.echo(
+            "Keep your private key safe. It should NEVER be committed to the repository."
+        )
+
+
 # Keep 'cli' as an alias so that callers using 'agentry.cli:cli' also work.
 cli = main
 
