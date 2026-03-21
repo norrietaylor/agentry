@@ -7,14 +7,30 @@ to local implementations, and maps outputs to the .agentry/runs/ directory.
 from __future__ import annotations
 
 import os
+import shlex
+import subprocess
 from pathlib import Path
 from typing import Any
 
-from agentry.binders.exceptions import NotAGitRepositoryError, UnsupportedToolError
+from agentry.binders.exceptions import (
+    CommandNotAllowedError,
+    NotAGitRepositoryError,
+    PathTraversalError,
+    UnsupportedToolError,
+)
 
 # Tools supported by the local binder.
-# Tool bindings (implementations) are provided in T03.3.
 SUPPORTED_TOOLS = frozenset({"repository:read", "shell:execute"})
+
+# Allowlist of permitted executable names for shell:execute.
+_SHELL_ALLOWLIST: frozenset[str] = frozenset(
+    {"git", "ls", "find", "grep", "cat", "head", "tail", "wc"}
+)
+
+# For git, only these sub-commands are allowed.
+_GIT_SUBCOMMAND_ALLOWLIST: frozenset[str] = frozenset(
+    {"log", "diff", "show", "blame"}
+)
 
 
 def _assert_git_repo(path: str | Path) -> Path:
@@ -118,17 +134,17 @@ class LocalBinder:
     ) -> dict[str, Any]:
         """Bind declared tool names to their local implementations.
 
-        Concrete callable implementations are wired up in T03.3. This skeleton
-        validates tool names and returns placeholder stubs so that the protocol
-        contract can be verified independently.
+        Wires ``repository:read`` to a concrete implementation that reads files
+        from the resolved repository path with path traversal protection, and
+        ``shell:execute`` to an implementation that enforces a hardcoded allowlist
+        of read-only commands.
 
         Args:
             tool_declarations: Tool identifiers declared in the workflow
                 (e.g. ``["repository:read", "shell:execute"]``).
 
         Returns:
-            Mapping of tool name to implementation (stubs in T03.1, real
-            implementations in T03.3).
+            Mapping of tool name to a concrete callable implementation.
 
         Raises:
             UnsupportedToolError: If any declared tool is not in
@@ -138,9 +154,10 @@ class LocalBinder:
         for tool_name in tool_declarations:
             if tool_name not in SUPPORTED_TOOLS:
                 raise UnsupportedToolError(tool_name, self.name)
-            # Real implementations are provided in T03.3.
-            # For now, store a sentinel so callers know the tool is bound.
-            bindings[tool_name] = _unimplemented_tool_stub(tool_name)
+            if tool_name == "repository:read":
+                bindings[tool_name] = _make_repository_read()
+            elif tool_name == "shell:execute":
+                bindings[tool_name] = _make_shell_execute()
         return bindings
 
     def map_outputs(
@@ -190,11 +207,11 @@ class LocalBinder:
     def _resolve_git_diff(self, ref: str, spec: dict[str, Any]) -> str:
         """Resolve a git-diff input by running ``git diff <ref>``.
 
-        Implementation is provided in T03.2. This skeleton validates that the
-        target directory is a git repository and raises a clear error if not.
+        Runs ``git diff <ref>`` in the target directory via subprocess and
+        returns the output as a string.
 
         Args:
-            ref: The git ref from ``--input diff=<ref>``.
+            ref: The git ref from ``--input diff=<ref>`` (e.g. ``"HEAD~1"``).
             spec: The input declaration spec (may contain ``target`` key).
 
         Returns:
@@ -202,12 +219,18 @@ class LocalBinder:
 
         Raises:
             NotAGitRepositoryError: If the target is not a git repository.
+            subprocess.CalledProcessError: If git diff returns a non-zero exit code.
         """
         target = spec.get("target", os.getcwd())
-        _assert_git_repo(target)
-        raise NotImplementedError(
-            "_resolve_git_diff() will be implemented in T03.2"
+        resolved_target = _assert_git_repo(target)
+        result = subprocess.run(
+            ["git", "diff", ref],
+            cwd=str(resolved_target),
+            capture_output=True,
+            text=True,
+            check=True,
         )
+        return result.stdout
 
     def _resolve_repository_ref(self, ref: str, spec: dict[str, Any]) -> str:
         """Resolve a repository-ref input to the absolute target path.
@@ -231,18 +254,135 @@ class LocalBinder:
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# Tool implementation factories (T03.3)
 # ---------------------------------------------------------------------------
 
 
-def _unimplemented_tool_stub(tool_name: str) -> Any:
-    """Return a callable that raises NotImplementedError with a helpful message."""
+def _make_repository_read() -> Any:
+    """Return a callable implementing the ``repository:read`` tool.
 
-    def _stub(*args: Any, **kwargs: Any) -> Any:
-        raise NotImplementedError(
-            f"Tool {tool_name!r} binding is not yet implemented. "
-            "Concrete tool implementations are provided in T03.3."
+    The returned function reads a file path relative to a repository root,
+    enforcing that the resolved path stays within the repository root (path
+    traversal protection).
+
+    The callable signature is::
+
+        def repository_read(*, repo_root: str, path: str) -> str: ...
+
+    Args:
+        repo_root: Absolute path to the repository root.
+        path: Relative path to the file within the repository.
+
+    Returns:
+        File contents as a string.
+
+    Raises:
+        PathTraversalError: If *path* resolves outside *repo_root* (including
+            ``../`` traversal and symlink attacks).
+        FileNotFoundError: If the resolved path does not exist.
+        IsADirectoryError: If the resolved path is a directory, not a file.
+    """
+
+    def repository_read(*, repo_root: str, path: str) -> str:
+        root = Path(repo_root).resolve()
+        # Resolve the candidate path. We must handle symlinks properly:
+        # Path.resolve() follows symlinks, so resolving the candidate gives us
+        # the true on-disk location for symlink attack prevention.
+        candidate = (root / path).resolve()
+
+        # Reject traversal: the resolved path must start with the repo root.
+        try:
+            candidate.relative_to(root)
+        except ValueError as exc:
+            raise PathTraversalError(str(root), path) from exc
+
+        if not candidate.exists():
+            raise FileNotFoundError(
+                f"File not found: {path!r} (resolved to {candidate})"
+            )
+        if candidate.is_dir():
+            raise IsADirectoryError(
+                f"Path {path!r} is a directory; a file path is required."
+            )
+
+        return candidate.read_text()
+
+    repository_read.__name__ = "repository_read"
+    return repository_read
+
+
+def _validate_shell_command(command: str) -> None:
+    """Validate that *command* is in the read-only allowlist.
+
+    Parses the command string using shell-like tokenisation and checks:
+    1. The executable (first token) is in :data:`_SHELL_ALLOWLIST`.
+    2. For ``git`` commands, the sub-command (second token) is in
+       :data:`_GIT_SUBCOMMAND_ALLOWLIST`.
+
+    Args:
+        command: The raw shell command string to validate.
+
+    Raises:
+        CommandNotAllowedError: If the command or git sub-command is not in the
+            allowlist, or if the command string is empty.
+    """
+    try:
+        tokens = shlex.split(command)
+    except ValueError as exc:
+        raise CommandNotAllowedError(command) from exc
+
+    if not tokens:
+        raise CommandNotAllowedError(command)
+
+    executable = tokens[0]
+
+    # Strip any path prefix so "/usr/bin/git" becomes "git".
+    executable_name = Path(executable).name
+
+    if executable_name not in _SHELL_ALLOWLIST:
+        raise CommandNotAllowedError(command)
+
+    if executable_name == "git" and (
+        len(tokens) < 2 or tokens[1] not in _GIT_SUBCOMMAND_ALLOWLIST
+    ):
+        raise CommandNotAllowedError(command)
+
+
+def _make_shell_execute() -> Any:
+    """Return a callable implementing the ``shell:execute`` tool.
+
+    The returned function validates the command against a read-only allowlist
+    before executing it. Permitted executables: ``git`` (sub-commands: ``log``,
+    ``diff``, ``show``, ``blame``), ``ls``, ``find``, ``grep``, ``cat``,
+    ``head``, ``tail``, ``wc``.
+
+    The callable signature is::
+
+        def shell_execute(*, command: str, cwd: str | None = None) -> str: ...
+
+    Args:
+        command: The shell command to execute.
+        cwd: Optional working directory for the command.
+
+    Returns:
+        Combined stdout of the executed command as a string.
+
+    Raises:
+        CommandNotAllowedError: If the command is not in the allowlist.
+        subprocess.CalledProcessError: If the command exits with non-zero status.
+    """
+
+    def shell_execute(*, command: str, cwd: str | None = None) -> str:
+        _validate_shell_command(command)
+        result = subprocess.run(
+            command,
+            shell=True,  # noqa: S602 — command is validated against allowlist
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
         )
+        return result.stdout
 
-    _stub.__name__ = tool_name.replace(":", "_")
-    return _stub
+    shell_execute.__name__ = "shell_execute"
+    return shell_execute

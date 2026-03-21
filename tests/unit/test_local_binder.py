@@ -164,15 +164,78 @@ class TestResolveInputsGitDiff:
         with pytest.raises(NotAGitRepositoryError):
             binder.resolve_inputs(declarations, {"diff": "HEAD~1"})
 
-    def test_git_diff_on_git_dir_raises_not_implemented(
+    def test_git_diff_on_git_dir_returns_string(
         self, binder: LocalBinder, git_repo: Path
     ) -> None:
+        """T03.2: _resolve_git_diff runs git diff and returns its output."""
+        # Create a commit so git diff HEAD~1 is valid.
+        (git_repo / "initial.txt").write_text("initial content\n")
+        subprocess.run(
+            ["git", "add", "initial.txt"], cwd=str(git_repo), check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=str(git_repo), check=True, capture_output=True,
+        )
+        (git_repo / "second.txt").write_text("second file\n")
+        subprocess.run(
+            ["git", "add", "second.txt"], cwd=str(git_repo), check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "second"],
+            cwd=str(git_repo), check=True, capture_output=True,
+        )
         declarations = {
             "diff": {"type": "git-diff", "required": True, "target": str(git_repo)}
         }
-        # T03.1 skeleton: passes git check, then raises NotImplementedError.
-        with pytest.raises(NotImplementedError):
-            binder.resolve_inputs(declarations, {"diff": "HEAD~1"})
+        result = binder.resolve_inputs(declarations, {"diff": "HEAD~1"})
+        assert isinstance(result["diff"], str)
+
+    def test_git_diff_output_contains_diff_content(
+        self, binder: LocalBinder, git_repo: Path
+    ) -> None:
+        """T03.2: git diff output contains the changed file."""
+        (git_repo / "file.txt").write_text("hello\n")
+        subprocess.run(
+            ["git", "add", "file.txt"], cwd=str(git_repo), check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add file"],
+            cwd=str(git_repo), check=True, capture_output=True,
+        )
+        (git_repo / "file.txt").write_text("hello\nworld\n")
+        subprocess.run(
+            ["git", "add", "file.txt"], cwd=str(git_repo), check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "update file"],
+            cwd=str(git_repo), check=True, capture_output=True,
+        )
+        declarations = {
+            "diff": {"type": "git-diff", "required": True, "target": str(git_repo)}
+        }
+        result = binder.resolve_inputs(declarations, {"diff": "HEAD~1"})
+        # The diff should mention the changed file.
+        assert "file.txt" in result["diff"]
+
+    def test_git_diff_empty_repo_returns_string(
+        self, binder: LocalBinder, git_repo: Path
+    ) -> None:
+        """T03.2: git diff with no changes returns an empty string."""
+        (git_repo / "readme.txt").write_text("readme\n")
+        subprocess.run(
+            ["git", "add", "readme.txt"], cwd=str(git_repo), check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "init"],
+            cwd=str(git_repo), check=True, capture_output=True,
+        )
+        declarations = {
+            "diff": {"type": "git-diff", "required": True, "target": str(git_repo)}
+        }
+        # git diff HEAD returns empty string when working tree is clean.
+        result = binder.resolve_inputs(declarations, {"diff": "HEAD"})
+        assert result["diff"] == ""
 
 
 # ---------------------------------------------------------------------------
@@ -232,9 +295,12 @@ class TestBindTools:
         with pytest.raises(UnsupportedToolError, match="pr:comment"):
             binder.bind_tools(["pr:comment"])
 
-    def test_stub_raises_not_implemented_on_call(self, binder: LocalBinder) -> None:
+    def test_repository_read_raises_type_error_without_required_args(
+        self, binder: LocalBinder
+    ) -> None:
+        """Calling repository:read without required kwargs raises TypeError (T03.3)."""
         bindings = binder.bind_tools(["repository:read"])
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(TypeError):
             bindings["repository:read"]()
 
     def test_empty_tool_list(self, binder: LocalBinder) -> None:
