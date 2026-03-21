@@ -121,27 +121,120 @@ def main(
 # ---------------------------------------------------------------------------
 
 @main.command()
-@click.argument("workflow_path", metavar="WORKFLOW_PATH")
+@click.argument("workflow_paths", metavar="WORKFLOW_PATH [WORKFLOW_PATH2]", nargs=-1)
+@click.option(
+    "--security-audit",
+    "security_audit",
+    is_flag=True,
+    default=False,
+    help=(
+        "Run a security audit on the workflow(s). "
+        "With one path: warn if unsigned. "
+        "With two paths: diff security-relevant fields between versions."
+    ),
+)
 @click.pass_context
-def validate(ctx: click.Context, workflow_path: str) -> None:
+def validate(ctx: click.Context, workflow_paths: tuple[str, ...], security_audit: bool) -> None:
     """Validate a workflow definition YAML file.
 
     Parses the workflow definition at WORKFLOW_PATH, validates it against the
     Agentry schema, and reports all errors with file path and location context.
 
+    When --security-audit is given with two paths, diffs security-relevant
+    fields (trust level, network allowlist, side effects, output paths, etc.)
+    between the two workflow versions.  Also warns when a workflow lacks a
+    signature.
+
     \b
     Exit codes:
-      0  Workflow is valid
+      0  Workflow is valid (or audit has no errors)
       1  Validation failed (errors written to stderr)
 
     \b
     Examples:
       agentry validate workflows/code-review.yaml
       agentry validate workflows/bug-fix.yaml --verbose
+      agentry validate --security-audit workflows/code-review.yaml
+      agentry validate --security-audit workflows/v1.yaml workflows/v2.yaml
     """
+    import json
     import os
 
     obj = ctx.ensure_object(dict)
+    output_format: str = obj.get("output_format", OutputFormat.TEXT)
+
+    # --security-audit mode -----------------------------------------------
+    if security_audit:
+        if len(workflow_paths) == 0:
+            click.echo(
+                "Error: --security-audit requires at least one WORKFLOW_PATH",
+                err=True,
+            )
+            sys.exit(1)
+
+        if len(workflow_paths) == 1:
+            # Single-path audit: warn about missing signature.
+            from agentry.security.audit import security_audit_single
+
+            path = workflow_paths[0]
+            if not os.path.exists(path):
+                click.echo(f"Error: workflow file not found: {path}", err=True)
+                sys.exit(1)
+
+            try:
+                report = security_audit_single(path)
+            except (FileNotFoundError, ValueError) as exc:
+                click.echo(f"Error: {exc}", err=True)
+                sys.exit(1)
+
+            if output_format == OutputFormat.JSON:
+                click.echo(json.dumps(report.format_json()))
+            else:
+                click.echo(report.format_text())
+            sys.exit(0)
+
+        if len(workflow_paths) == 2:
+            # Two-path audit: diff security-relevant fields.
+            from agentry.security.audit import security_audit as run_security_audit
+
+            path1, path2 = workflow_paths[0], workflow_paths[1]
+            for p in (path1, path2):
+                if not os.path.exists(p):
+                    click.echo(f"Error: workflow file not found: {p}", err=True)
+                    sys.exit(1)
+
+            try:
+                report = run_security_audit(path1, path2)
+            except (FileNotFoundError, ValueError) as exc:
+                click.echo(f"Error: {exc}", err=True)
+                sys.exit(1)
+
+            if output_format == OutputFormat.JSON:
+                click.echo(json.dumps(report.format_json()))
+            else:
+                click.echo(report.format_text())
+            sys.exit(0)
+
+        # More than 2 paths is an error.
+        click.echo(
+            "Error: --security-audit accepts at most two WORKFLOW_PATH arguments",
+            err=True,
+        )
+        sys.exit(1)
+
+    # Normal validate mode -------------------------------------------------
+    if len(workflow_paths) == 0:
+        click.echo("Error: Missing argument 'WORKFLOW_PATH'.", err=True)
+        sys.exit(1)
+
+    if len(workflow_paths) > 1:
+        click.echo(
+            "Error: validate accepts exactly one WORKFLOW_PATH without --security-audit",
+            err=True,
+        )
+        sys.exit(1)
+
+    workflow_path = workflow_paths[0]
 
     logger.debug("Validating workflow: %s", workflow_path)
 
@@ -163,10 +256,7 @@ def validate(ctx: click.Context, workflow_path: str) -> None:
                 click.echo(f"Error: {err}", err=True)
             sys.exit(1)
         else:
-            output_format: str = obj.get("output_format", OutputFormat.TEXT)
             if output_format == OutputFormat.JSON:
-                import json
-
                 click.echo(json.dumps({"status": "valid", "path": workflow_path}))
             else:
                 click.echo(f"Validation successful: {workflow_path}")

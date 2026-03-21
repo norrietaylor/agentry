@@ -1,4 +1,4 @@
-"""Unit tests for T01.4: DockerRunner core (provision, teardown, check_available).
+"""Unit tests for DockerRunner (T01.4 core + T01.5 execute with timeout and shim).
 
 All Docker calls are mocked -- no Docker daemon is required.
 
@@ -8,19 +8,28 @@ Tests cover:
 - provision() creates a container with correct image, CPU, memory, user, mounts.
 - provision() raises RuntimeError when container creation fails.
 - provision() returns RunnerContext with container_id, mount_mappings, metadata.
+- provision() sets the shim command on the container.
 - teardown() calls container.remove(force=True, v=True).
 - teardown() is idempotent: 404 / "not found" does not raise.
 - teardown() logs warning on unexpected failure but does not raise.
 - teardown() is a no-op when container_id is empty.
 - Constructor raises RuntimeError when docker-py is absent and no client given.
 - DockerRunner satisfies RunnerProtocol.
-- execute() returns a stub error result (pending T01.5).
+- execute() starts container, copies config, and returns result.
+- execute() enforces timeout and kills container on expiry.
+- execute() returns error when container_id is empty.
+- execute() handles container not found gracefully.
+- execute() collects stdout/stderr from the container.
+- _build_config_payload() serialises AgentConfig correctly.
 - Integration test with @pytest.mark.docker marker.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import tempfile
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -448,24 +457,355 @@ class TestProtocolCompliance:
 # ---------------------------------------------------------------------------
 
 
-class TestExecuteStub:
-    """Tests for the execute() stub (pending T01.5)."""
+def _make_agent_config(**overrides: object) -> AgentConfig:
+    """Build an AgentConfig with sensible defaults."""
+    defaults: dict[str, object] = {
+        "system_prompt": "You are a helpful assistant.",
+        "resolved_inputs": {"diff": "test diff content"},
+        "tool_names": ["repository:read"],
+        "llm_config": {"model": "claude-3-sonnet", "temperature": 0.0},
+        "timeout": 60.0,
+    }
+    defaults.update(overrides)
+    return AgentConfig(**defaults)  # type: ignore[arg-type]
 
-    def test_returns_error_result(self) -> None:
+
+def _setup_execute_mocks(
+    client: MagicMock,
+    container: MagicMock,
+    exit_code: int = 0,
+    stdout: bytes = b"agent output",
+    stderr: bytes = b"",
+) -> None:
+    """Configure container mock for a successful execute() flow."""
+    client.containers.get.return_value = container
+    container.wait.return_value = {"StatusCode": exit_code}
+    container.logs.side_effect = lambda stdout=False, stderr=False: (
+        stdout if stdout else stderr if stderr else b""
+    )
+    # Provide distinct stdout/stderr
+    def _logs_side_effect(stdout=False, stderr=False):  # noqa: FBT002
+        if stdout:
+            return stdout
+        if stderr:
+            return stderr
+        return b""
+
+    # Override with actual bytes
+    container.logs.side_effect = None
+    container.logs.return_value = stdout
+
+
+class TestExecute:
+    """Tests for DockerRunner.execute() (T01.5)."""
+
+    def test_returns_error_when_no_container_id(self) -> None:
         client = _make_docker_client()
         runner = DockerRunner(docker_client=client)
-        ctx = RunnerContext(container_id="some-container")
-        config = AgentConfig(
-            system_prompt="test",
-            resolved_inputs={},
-            tool_names=[],
-            llm_config=None,
-        )
+        ctx = RunnerContext(container_id="")
+        config = _make_agent_config()
+
         result = runner.execute(runner_context=ctx, agent_config=config)
 
         assert isinstance(result, ExecutionResult)
         assert result.exit_code == 1
-        assert "not yet implemented" in result.error.lower()
+        assert "no container id" in result.error.lower()
+
+    def test_returns_error_when_container_not_found(self) -> None:
+        client = _make_docker_client()
+        client.containers.get.side_effect = RuntimeError("No such container")
+        runner = DockerRunner(docker_client=client)
+        ctx = RunnerContext(container_id="missing-container")
+        config = _make_agent_config()
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.exit_code == 1
+        assert "cannot find container" in result.error.lower()
+
+    def test_starts_container(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        _setup_execute_mocks(client, container, exit_code=0)
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config()
+
+        runner.execute(runner_context=ctx, agent_config=config)
+
+        container.start.assert_called_once()
+
+    def test_copies_config_to_container(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        _setup_execute_mocks(client, container, exit_code=0)
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config()
+
+        runner.execute(runner_context=ctx, agent_config=config)
+
+        container.put_archive.assert_called_once()
+        call_args = container.put_archive.call_args
+        assert call_args[0][0] == "/config"
+
+    def test_waits_for_container_with_timeout(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        _setup_execute_mocks(client, container, exit_code=0)
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config(timeout=120.0)
+
+        runner.execute(runner_context=ctx, agent_config=config)
+
+        container.wait.assert_called_once_with(timeout=120.0)
+
+    def test_successful_execution_returns_zero_exit_code(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        _setup_execute_mocks(client, container, exit_code=0)
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config()
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert isinstance(result, ExecutionResult)
+        assert result.exit_code == 0
+        assert result.timed_out is False
+        assert result.error == ""
+
+    def test_nonzero_exit_code_produces_error(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        _setup_execute_mocks(client, container, exit_code=1)
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config()
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.exit_code == 1
+        assert result.error != ""
+
+    def test_returns_error_when_start_fails(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        client.containers.get.return_value = container
+        container.start.side_effect = RuntimeError("Cannot start container")
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config()
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.exit_code == 1
+        assert "failed to start" in result.error.lower()
+
+    def test_runner_metadata_includes_container_info(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        _setup_execute_mocks(client, container, exit_code=0)
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config()
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.runner_metadata["runner_type"] == "docker"
+        assert result.runner_metadata["container_id"] == "exec-container-id"
+
+
+class TestExecuteTimeout:
+    """Tests for timeout enforcement in DockerRunner.execute()."""
+
+    def test_kills_container_on_timeout(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("timeout-container")
+        client.containers.get.return_value = container
+        container.wait.side_effect = RuntimeError("Read timed out")
+        container.logs.return_value = b""
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="timeout-container")
+        config = _make_agent_config(timeout=5.0)
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.timed_out is True
+        assert result.exit_code == 137  # SIGKILL
+        container.kill.assert_called_once_with(signal="SIGKILL")
+
+    def test_timeout_error_message_includes_duration(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("timeout-container")
+        client.containers.get.return_value = container
+        container.wait.side_effect = RuntimeError("timeout")
+        container.logs.return_value = b""
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="timeout-container")
+        config = _make_agent_config(timeout=10.0)
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.timed_out is True
+        assert "timed out" in result.error.lower()
+        assert "10.0s" in result.error
+
+    def test_non_timeout_wait_error_returns_error_result(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("error-container")
+        client.containers.get.return_value = container
+        container.wait.side_effect = RuntimeError("Docker daemon crashed")
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="error-container")
+        # No timeout set so this should not be treated as a timeout.
+        config = _make_agent_config(timeout=None)
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.exit_code == 1
+        assert result.timed_out is False
+        assert "error waiting for container" in result.error.lower()
+
+    def test_kill_failure_is_handled_gracefully(self, caplog) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("unkillable-container")
+        client.containers.get.return_value = container
+        container.wait.side_effect = RuntimeError("timed out")
+        container.kill.side_effect = RuntimeError("Cannot kill")
+        container.logs.return_value = b""
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="unkillable-container")
+        config = _make_agent_config(timeout=5.0)
+
+        with caplog.at_level(logging.WARNING):
+            result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.timed_out is True
+        assert any("failed to kill" in r.message.lower() for r in caplog.records)
+
+
+class TestExecuteConfigPayload:
+    """Tests for _build_config_payload static method."""
+
+    def test_serialises_basic_config(self) -> None:
+        config = _make_agent_config(
+            system_prompt="Review code",
+            resolved_inputs={"diff": "abc"},
+            tool_names=["shell:execute"],
+            llm_config={"model": "claude-3"},
+            timeout=30.0,
+        )
+
+        payload = DockerRunner._build_config_payload(config)
+
+        assert payload["system_prompt"] == "Review code"
+        assert payload["resolved_inputs"] == {"diff": "abc"}
+        assert payload["tool_names"] == ["shell:execute"]
+        assert payload["llm_config"] == {"model": "claude-3"}
+        assert payload["timeout"] == 30.0
+
+    def test_omits_timeout_when_none(self) -> None:
+        config = _make_agent_config(timeout=None)
+
+        payload = DockerRunner._build_config_payload(config)
+
+        assert "timeout" not in payload
+
+    def test_serialises_object_llm_config(self) -> None:
+        class FakeLLMConfig:
+            def __init__(self):
+                self.model = "claude-3-opus"
+                self.temperature = 0.5
+
+        config = _make_agent_config(llm_config=FakeLLMConfig())
+
+        payload = DockerRunner._build_config_payload(config)
+
+        assert payload["llm_config"]["model"] == "claude-3-opus"
+        assert payload["llm_config"]["temperature"] == 0.5
+
+
+class TestProvisionCommand:
+    """Tests that provision() sets the shim command on the container."""
+
+    def test_provision_sets_shim_command(self) -> None:
+        client = _make_docker_client()
+        client.containers.create.return_value = _make_container_mock()
+        safety = _make_safety_block()
+
+        runner = DockerRunner(docker_client=client)
+        runner.provision(safety_block=safety, resolved_inputs={})
+
+        _, kwargs = client.containers.create.call_args
+        assert kwargs["command"] == [
+            "python", "-m", "agentry.runners.shim",
+            "/config/agent_config.json",
+            "/output/result.json",
+        ]
+
+
+class TestReadResultFile:
+    """Tests for DockerRunner._read_result_file."""
+
+    def test_reads_valid_result(self) -> None:
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        result_path = os.path.join(output_dir, "result.json")
+        with open(result_path, "w") as fh:
+            json.dump({"exit_code": 0, "final_content": "ok"}, fh)
+
+        client = _make_docker_client()
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        result = runner._read_result_file()
+
+        assert result["exit_code"] == 0
+        assert result["final_content"] == "ok"
+
+    def test_returns_error_when_file_missing(self) -> None:
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+
+        client = _make_docker_client()
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        result = runner._read_result_file()
+
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_returns_error_on_invalid_json(self) -> None:
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        result_path = os.path.join(output_dir, "result.json")
+        with open(result_path, "w") as fh:
+            fh.write("not valid json {{{")
+
+        client = _make_docker_client()
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        result = runner._read_result_file()
+
+        assert "error" in result
+        assert "invalid json" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------

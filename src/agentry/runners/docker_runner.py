@@ -4,6 +4,12 @@ Provides a RunnerProtocol backend that executes agents inside Docker containers
 with strict isolation: CPU/memory limits, read-only/read-write bind mounts,
 non-root user (UID 1000), and isolated networking.
 
+The ``execute()`` method starts the provisioned container, mounts a JSON
+config file with LLM client configuration and resolved inputs, then runs the
+runtime shim (``agentry.runners.shim``) inside the container. Timeout
+enforcement kills the container (SIGKILL) if execution exceeds
+``resources.timeout`` seconds.
+
 Uses ``docker-py`` (the ``docker`` library) for all container lifecycle
 management. The Docker daemon must be reachable for ``check_available()``
 and ``provision()`` to succeed.
@@ -17,14 +23,19 @@ Usage::
     assert status.available
 
     ctx = runner.provision(safety_block=safety, resolved_inputs={})
-    # ... execute handled by T01.5 ...
+    result = runner.execute(runner_context=ctx, agent_config=config)
     runner.teardown(ctx)
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import tempfile
+import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from agentry.models.safety import SafetyBlock
@@ -249,6 +260,11 @@ class DockerRunner:
             container = self._client.containers.create(
                 image=image,
                 name=container_name,
+                command=[
+                    "python", "-m", "agentry.runners.shim",
+                    "/config/agent_config.json",
+                    "/output/result.json",
+                ],
                 user=self._CONTAINER_USER,
                 volumes=binds,
                 cpu_period=cpu_period,
@@ -289,7 +305,7 @@ class DockerRunner:
         )
 
     # ------------------------------------------------------------------
-    # RunnerProtocol: execute (stub -- implemented in T01.5)
+    # RunnerProtocol: execute
     # ------------------------------------------------------------------
 
     def execute(
@@ -299,23 +315,270 @@ class DockerRunner:
     ) -> ExecutionResult:
         """Execute the agent inside the provisioned container.
 
-        .. note::
+        Starts the container, mounts a JSON config file with LLM client
+        configuration, tool bindings, and resolved inputs, then runs the
+        runtime shim (``agentry.runners.shim``) inside the container.
 
-            Full implementation is deferred to T01.5. This stub returns
-            an error result indicating the method is not yet implemented.
+        The shim reads the config, executes the agent, and writes output to
+        ``/output/result.json``. After the container exits (or is killed on
+        timeout), this method reads the result file and returns an
+        :class:`ExecutionResult`.
 
         Args:
-            runner_context: The provisioned environment context.
-            agent_config: Bundled agent execution parameters.
+            runner_context: The provisioned environment context returned by
+                :meth:`provision`.
+            agent_config: Bundled agent execution parameters (system prompt,
+                inputs, tool names, LLM config, retry config, timeout).
 
         Returns:
-            An :class:`ExecutionResult` with an error indicating the method
-            is not yet implemented.
+            An :class:`ExecutionResult` wrapping the execution output.
+
+        Raises:
+            RuntimeError: If the container cannot be started or the result
+                cannot be read.
         """
-        return ExecutionResult(
-            exit_code=1,
-            error="DockerRunner.execute() is not yet implemented (see T01.5).",
+        container_id = runner_context.container_id
+        if not container_id:
+            return ExecutionResult(
+                exit_code=1,
+                error="No container ID in runner context; cannot execute.",
+            )
+
+        short_id = container_id[:12]
+
+        # Build the agent config JSON that the shim will read.
+        config_payload = self._build_config_payload(agent_config)
+
+        # Write the config to a temp file on the host.
+        config_dir = tempfile.mkdtemp(prefix="agentry-config-")
+        config_path = os.path.join(config_dir, "agent_config.json")
+        with open(config_path, "w") as fh:
+            json.dump(config_payload, fh, indent=2, default=str)
+
+        logger.info(
+            "Wrote agent config to %s for container id=%s",
+            config_path,
+            short_id,
         )
+
+        try:
+            container = self._client.containers.get(container_id)
+        except Exception as exc:
+            return ExecutionResult(
+                exit_code=1,
+                error=f"Cannot find container id={short_id}: {exc}",
+            )
+
+        # Copy the config file into the container at /config/.
+        self._copy_to_container(container, config_path, "/config/agent_config.json")
+
+        # Start the container with the shim command.
+        shim_command = [
+            "python", "-m", "agentry.runners.shim",
+            "/config/agent_config.json",
+            "/output/result.json",
+        ]
+
+        logger.info(
+            "Starting container id=%s with command: %s",
+            short_id,
+            shim_command,
+        )
+
+        try:
+            container.start()
+        except Exception as exc:
+            return ExecutionResult(
+                exit_code=1,
+                error=f"Failed to start container id={short_id}: {exc}",
+            )
+
+        # Wait for completion with timeout enforcement.
+        timeout = agent_config.timeout
+        timed_out = False
+        start_time = time.monotonic()
+
+        try:
+            wait_result = container.wait(timeout=timeout)
+            exit_code = wait_result.get("StatusCode", -1)
+        except Exception as exc:
+            elapsed = time.monotonic() - start_time
+            exc_str = str(exc).lower()
+
+            # Detect timeout -- docker-py raises on timeout or the container
+            # may still be running.
+            if timeout is not None and (
+                elapsed >= timeout
+                or "timed out" in exc_str
+                or "read timeout" in exc_str
+                or "timeout" in exc_str
+            ):
+                timed_out = True
+                logger.warning(
+                    "Container id=%s exceeded timeout of %.1fs; killing.",
+                    short_id,
+                    timeout,
+                )
+                self._kill_container(container, short_id)
+                exit_code = 137  # SIGKILL
+            else:
+                return ExecutionResult(
+                    exit_code=1,
+                    error=f"Error waiting for container id={short_id}: {exc}",
+                )
+
+        # Collect stdout/stderr from the container.
+        stdout = self._collect_logs(container, "stdout")
+        stderr = self._collect_logs(container, "stderr")
+
+        # Read the result file from the output directory.
+        result_data = self._read_result_file()
+
+        # Build the execution result.
+        error_msg = ""
+        if timed_out:
+            error_msg = (
+                f"Execution timed out after {timeout}s; "
+                f"container id={short_id} was killed."
+            )
+        elif exit_code != 0:
+            error_msg = result_data.get(
+                "error",
+                f"Container id={short_id} exited with code {exit_code}.",
+            )
+
+        logger.info(
+            "Container id=%s finished: exit_code=%d timed_out=%s",
+            short_id,
+            exit_code,
+            timed_out,
+        )
+
+        return ExecutionResult(
+            exit_code=exit_code,
+            stdout=stdout,
+            stderr=stderr,
+            runner_metadata={
+                "runner_type": "docker",
+                "container_id": container_id,
+                "timed_out": timed_out,
+                "result_data": result_data,
+            },
+            timed_out=timed_out,
+            error=error_msg,
+        )
+
+    # ------------------------------------------------------------------
+    # Private helpers for execute
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_config_payload(agent_config: AgentConfig) -> dict[str, Any]:
+        """Serialize an AgentConfig into a JSON-compatible dictionary.
+
+        Args:
+            agent_config: The agent configuration to serialize.
+
+        Returns:
+            A dictionary suitable for ``json.dump()``.
+        """
+        payload: dict[str, Any] = {
+            "system_prompt": agent_config.system_prompt,
+            "resolved_inputs": agent_config.resolved_inputs,
+            "tool_names": agent_config.tool_names,
+            "llm_config": agent_config.llm_config
+            if isinstance(agent_config.llm_config, dict)
+            else (
+                agent_config.llm_config.__dict__
+                if hasattr(agent_config.llm_config, "__dict__")
+                else {}
+            ),
+        }
+        if agent_config.retry_config is not None:
+            payload["retry_config"] = agent_config.retry_config
+            if hasattr(agent_config.retry_config, "__dict__"):
+                payload["retry_config"] = agent_config.retry_config.__dict__
+        if agent_config.timeout is not None:
+            payload["timeout"] = agent_config.timeout
+        return payload
+
+    @staticmethod
+    def _copy_to_container(
+        container: Any,
+        host_path: str,
+        container_path: str,
+    ) -> None:
+        """Copy a file from the host into the container using ``put_archive``.
+
+        Args:
+            container: Docker container object.
+            host_path: Absolute path on the host.
+            container_path: Absolute path inside the container.
+        """
+        import io
+        import tarfile
+
+        tar_stream = io.BytesIO()
+        with tarfile.open(fileobj=tar_stream, mode="w") as tar:
+            tar.add(host_path, arcname=os.path.basename(container_path))
+        tar_stream.seek(0)
+
+        container_dir = str(Path(container_path).parent)
+        container.put_archive(container_dir, tar_stream)
+
+    def _kill_container(self, container: Any, short_id: str) -> None:
+        """Send SIGKILL to a running container.
+
+        Args:
+            container: Docker container object.
+            short_id: Short container ID for logging.
+        """
+        try:
+            container.kill(signal="SIGKILL")
+            logger.info("Killed container id=%s", short_id)
+        except Exception as kill_exc:
+            logger.warning(
+                "Failed to kill container id=%s: %s",
+                short_id,
+                kill_exc,
+            )
+
+    @staticmethod
+    def _collect_logs(container: Any, stream: str) -> str:
+        """Collect logs from a container.
+
+        Args:
+            container: Docker container object.
+            stream: Either ``"stdout"`` or ``"stderr"``.
+
+        Returns:
+            Decoded log output, or empty string on failure.
+        """
+        try:
+            raw = container.logs(
+                stdout=(stream == "stdout"),
+                stderr=(stream == "stderr"),
+            )
+            if isinstance(raw, bytes):
+                return raw.decode("utf-8", errors="replace")
+            return str(raw)
+        except Exception:
+            return ""
+
+    def _read_result_file(self) -> dict[str, Any]:
+        """Read the result JSON from the output directory.
+
+        Returns:
+            Parsed result dictionary, or a dict with an error key on failure.
+        """
+        result_path = os.path.join(self._output_path, "result.json")
+        try:
+            with open(result_path) as fh:
+                return json.load(fh)
+        except FileNotFoundError:
+            return {"error": f"Result file not found: {result_path}"}
+        except json.JSONDecodeError as exc:
+            return {"error": f"Invalid JSON in result file: {exc}"}
 
     # ------------------------------------------------------------------
     # RunnerProtocol: teardown

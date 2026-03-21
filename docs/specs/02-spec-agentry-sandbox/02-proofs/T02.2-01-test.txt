@@ -1,0 +1,57 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_dns_proxy.py -v
+Expected: All 40 tests pass
+Timestamp: 2026-03-20T$(date -u +%H:%M:%SZ)
+Status: PASS
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 40 items
+
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_includes_explicit_domains PASSED [  2%]
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_includes_anthropic_provider_domain PASSED [  5%]
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_includes_openai_provider_domain PASSED [  7%]
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_includes_default_domains_when_provider_is_none PASSED [ 10%]
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_normalises_to_lowercase PASSED [ 12%]
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_strips_trailing_dot PASSED [ 15%]
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_unknown_provider_falls_back_to_defaults PASSED [ 17%]
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_merges_explicit_and_provider_domains PASSED [ 20%]
+tests/unit/test_dns_proxy.py::TestBuildAllowSet::test_deduplicates_domains PASSED [ 22%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_exact_match PASSED [ 25%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_exact_match_case_insensitive PASSED [ 27%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_exact_match_with_trailing_dot PASSED [ 30%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_subdomain_match PASSED [ 32%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_deep_subdomain_match PASSED [ 35%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_blocked_domain PASSED [ 37%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_partial_match_not_allowed PASSED [ 40%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_empty_domain_blocked PASSED [ 42%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_empty_allow_set_blocks_all PASSED [ 45%]
+tests/unit/test_dns_proxy.py::TestIsDomainAllowed::test_dot_only_blocked PASSED [ 47%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyResolve::test_allowed_domain_resolves PASSED [ 50%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyResolve::test_blocked_domain_returns_nxdomain PASSED [ 52%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyResolve::test_llm_api_domain_always_allowed PASSED [ 55%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyResolve::test_query_log_records_allowed PASSED [ 57%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyResolve::test_query_log_records_blocked PASSED [ 60%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyResolve::test_multiple_queries_logged PASSED [ 62%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyResolve::test_subdomain_resolves_when_parent_allowed PASSED [ 65%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyResolve::test_upstream_resolver_failure_returns_none PASSED [ 67%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyAllowSet::test_allow_set_includes_configured_domains PASSED [ 70%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyAllowSet::test_allow_set_includes_llm_domain PASSED [ 72%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyAllowSet::test_empty_allow_list_still_has_default_llm_domains PASSED [ 75%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyAllowSet::test_allow_set_is_copy PASSED [ 77%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyConfig::test_config_based_construction PASSED [ 80%]
+tests/unit/test_dns_proxy.py::TestDNSFilteringProxyConfig::test_config_overrides_keyword_args PASSED [ 82%]
+tests/unit/test_dns_proxy.py::TestDockerHelpers::test_get_container_dns_config PASSED [ 85%]
+tests/unit/test_dns_proxy.py::TestDockerHelpers::test_get_sidecar_container_config_with_execution_id PASSED [ 87%]
+tests/unit/test_dns_proxy.py::TestDockerHelpers::test_get_sidecar_container_config_defaults PASSED [ 90%]
+tests/unit/test_dns_proxy.py::TestProviderDomains::test_anthropic_mapped PASSED [ 92%]
+tests/unit/test_dns_proxy.py::TestProviderDomains::test_openai_mapped PASSED [ 95%]
+tests/unit/test_dns_proxy.py::TestProviderDomains::test_default_llm_domains_not_empty PASSED [ 97%]
+tests/unit/test_dns_proxy.py::TestDNSQueryLog::test_fields PASSED        [100%]
+
+============================== 40 passed in 0.28s ==============================
