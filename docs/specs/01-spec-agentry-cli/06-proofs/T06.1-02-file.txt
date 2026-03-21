@@ -1,0 +1,45 @@
+Type: file
+Check: workflows/prompts/code-review.md exists and contains non-empty content
+Expected: File exists with system prompt content covering severity/category guidelines
+Timestamp: 2026-03-20T00:00:00Z
+
+--- FILE VERIFICATION ---
+File: workflows/prompts/code-review.md
+Exists: yes
+Size: non-empty (>100 characters)
+
+--- CONTENT SUMMARY ---
+The system prompt file contains:
+  - Agent role description (expert code reviewer)
+  - Required JSON output schema definition with all fields:
+    * file (string)
+    * line (integer)
+    * severity (critical | warning | info)
+    * category (security | performance | style | correctness)
+    * description (string)
+    * suggestion (string)
+    * plus top-level: summary (string), confidence (number 0.0-1.0)
+  - Severity guidelines (critical/warning/info definitions)
+  - Category guidelines (security/performance/correctness/style definitions)
+  - Output budget instruction (maximum 10 findings)
+  - Confidence score guidance
+  - Step-by-step review instructions
+
+--- SCHEMA VERIFICATION ---
+Parsed workflow output schema from workflows/code-review.yaml:
+  identity.name: code-review
+  identity.version: 1.0.0
+  inputs: ['diff', 'codebase', 'document_ref']
+  tools.capabilities: ['repository:read']
+  model.provider: anthropic
+  model.model_id: claude-sonnet-4-20250514
+  model.temperature: 0.2
+  model.system_prompt: prompts/code-review.md
+  output.budget.max_findings: 10
+  output.side_effects: [] (none - matches task requirement)
+  output.schema keys: ['findings', 'summary', 'confidence']
+  output.schema required: ['findings', 'summary', 'confidence']
+  findings item properties: ['category', 'description', 'file', 'line', 'severity', 'suggestion']
+  findings item required: ['file', 'line', 'severity', 'category', 'description']
+
+Status: PASS

@@ -1,0 +1,77 @@
+identity:
+  name: code-review
+  version: 1.0.0
+  description: >
+    Reviews pull request diffs for security vulnerabilities, performance
+    regressions, and style violations. Produces structured findings with
+    severity classifications and a summary comment.
+
+inputs:
+  diff:
+    type: git-diff
+    required: true
+    ref: HEAD~1
+    description: The git diff to review
+  codebase:
+    type: repository-ref
+    required: true
+    description: The repository to review
+  document_ref:
+    type: document-ref
+    required: false
+    description: Optional style guide or reference document
+
+tools:
+  capabilities:
+    - repository:read
+
+model:
+  provider: anthropic
+  model_id: claude-sonnet-4-20250514
+  temperature: 0.2
+  max_tokens: 8192
+  system_prompt: prompts/code-review.md
+  retry:
+    max_attempts: 2
+    backoff: exponential
+
+safety:
+  resources:
+    timeout: 300
+
+output:
+  schema:
+    type: object
+    properties:
+      findings:
+        type: array
+        items:
+          type: object
+          properties:
+            file:
+              type: string
+            line:
+              type: integer
+            severity:
+              type: string
+              enum: [critical, warning, info]
+            category:
+              type: string
+              enum: [security, performance, style, correctness]
+            description:
+              type: string
+            suggestion:
+              type: string
+          required: [file, line, severity, category, description]
+      summary:
+        type: string
+      confidence:
+        type: number
+        minimum: 0
+        maximum: 1
+    required: [findings, summary, confidence]
+  side_effects: []
+  output_paths:
+    - review.json
+  budget:
+    max_findings: 10
