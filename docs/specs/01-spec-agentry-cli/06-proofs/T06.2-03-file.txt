@@ -1,0 +1,13 @@
+Type: file
+Command: test -s workflows/prompts/bug-fix-system-prompt.md && test -s workflows/prompts/triage-system-prompt.md
+Expected: Both prompt files exist and are non-empty
+Timestamp: 2026-03-20T00:00:00Z
+
+--- OUTPUT ---
+workflows/prompts/bug-fix-system-prompt.md: 1284 bytes
+workflows/prompts/triage-system-prompt.md:  1544 bytes
+
+Both files exist and contain non-empty content.
+
+--- RESULT ---
+Status: PASS

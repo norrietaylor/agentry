@@ -1,0 +1,73 @@
+identity:
+  name: triage
+  version: 1.0.0
+  description: Classify and triage a software issue to assign severity, category, and routing.
+
+inputs:
+  issue-description:
+    type: string
+    required: true
+    description: A description of the issue to triage.
+  repository-ref:
+    type: repository-ref
+    required: true
+    description: The repository to inspect for component context.
+
+tools:
+  capabilities:
+    - repository:read
+
+model:
+  provider: anthropic
+  model_id: claude-sonnet-4-20250514
+  temperature: 0.2
+  max_tokens: 2048
+  system_prompt: prompts/triage-system-prompt.md
+  retry:
+    max_attempts: 3
+    backoff: exponential
+
+safety:
+  resources:
+    timeout: 120
+
+output:
+  schema:
+    type: object
+    required:
+      - severity
+      - category
+      - affected_components
+      - recommended_assignee
+      - reasoning
+    properties:
+      severity:
+        type: string
+        enum:
+          - critical
+          - high
+          - medium
+          - low
+        description: Issue severity level.
+      category:
+        type: string
+        description: Issue category (e.g. bug, security, performance, usability).
+      affected_components:
+        type: array
+        items:
+          type: string
+        description: List of affected modules, services, or subsystems.
+      recommended_assignee:
+        type: string
+        description: Team or role recommended to handle this issue.
+      reasoning:
+        type: string
+        description: Brief explanation of the severity and category decisions.
+  side_effects:
+    - type: terminal
+      description: Print triage summary to stdout
+  output_paths:
+    - triage-result.json
+
+composition:
+  steps: []
