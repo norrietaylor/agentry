@@ -12,6 +12,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+import httpx
+
 
 class GitHubActionsBinder:
     """Environment binder for GitHub Actions CI execution.
@@ -103,19 +105,162 @@ class GitHubActionsBinder:
     ) -> dict[str, Any]:
         """Resolve abstract input declarations to concrete values.
 
-        Not yet implemented; will be filled in by T01.2.
+        Handles input types:
+
+        - ``repository-ref``: Resolves to :attr:`workspace` (the
+          ``GITHUB_WORKSPACE`` runner path).
+        - ``git-diff``: Fetches the pull-request unified diff from the GitHub
+          API using ``GET /repos/{owner}/{repo}/pulls/{number}`` with
+          ``Accept: application/vnd.github.diff``.  The PR number comes from
+          the event payload parsed on construction.
+        - ``string``: Resolves in order of priority:
+          1. ``provided_values[name]`` (explicit ``--input`` override).
+          2. ``event_payload["inputs"][name]`` when the event is
+             ``workflow_dispatch``.
+          3. Dot-notation traversal of the event payload using the
+             ``source`` key in the input spec (e.g. ``"issue.title"``).
+          4. Optional inputs without a resolvable value return ``None``.
 
         Args:
-            input_declarations: The workflow's input block (name -> input spec dict).
-            provided_values: User-supplied values from ``--input key=value`` CLI args.
+            input_declarations: The workflow's input block (name -> input spec
+                dict).  Each spec may contain ``type``, ``required``, and
+                ``source`` keys.
+            provided_values: User-supplied values from ``--input key=value``
+                CLI args.
+
+        Returns:
+            A mapping of input name to resolved concrete value.
 
         Raises:
-            NotImplementedError: Always. Implementation is deferred to T01.2.
+            ValueError: If a ``git-diff`` input is requested when the current
+                event is not ``pull_request``.
+            ValueError: If a required input cannot be resolved from the
+                available event context.
         """
-        raise NotImplementedError(
-            "resolve_inputs() is not yet implemented for the GitHub Actions binder. "
-            "This method will be implemented in T01.2."
+        resolved: dict[str, Any] = {}
+
+        for name, spec in input_declarations.items():
+            required = spec.get("required", False)
+            input_type = spec.get("type", "string")
+
+            if input_type == "repository-ref":
+                resolved[name] = self._workspace
+                continue
+
+            if input_type == "git-diff":
+                resolved[name] = self._resolve_git_diff(name)
+                continue
+
+            # ``string`` (and unknown types): multi-source resolution.
+            value = self._resolve_string(name, spec, provided_values)
+            if value is None and required:
+                raise ValueError(
+                    f"Required input {name!r} could not be resolved from the "
+                    f"current GitHub Actions event context (event: "
+                    f"{self._event_name!r}). "
+                    "Provide a value via --input, a workflow_dispatch input, "
+                    "or add a 'source' mapping to the input declaration."
+                )
+            resolved[name] = value
+
+        return resolved
+
+    # ------------------------------------------------------------------
+    # Private helpers for resolve_inputs
+    # ------------------------------------------------------------------
+
+    def _resolve_git_diff(self, input_name: str) -> str:
+        """Fetch the pull-request diff from the GitHub API.
+
+        Args:
+            input_name: The logical name of the input (used in error messages).
+
+        Returns:
+            The unified diff string for the pull request.
+
+        Raises:
+            ValueError: If the current event is not ``pull_request``.
+            httpx.HTTPStatusError: If the GitHub API returns an error status.
+        """
+        if self._event_name != "pull_request" or self._pr_number is None:
+            raise ValueError(
+                f"Input {input_name!r} has type 'git-diff' but the current "
+                f"event is {self._event_name!r}. "
+                "git-diff inputs are only available for pull_request events."
+            )
+
+        owner_repo = self._repository  # "owner/repo" format
+        url = f"https://api.github.com/repos/{owner_repo}/pulls/{self._pr_number}"
+        response = httpx.get(
+            url,
+            headers={
+                "Authorization": f"Bearer {self._token}",
+                "Accept": "application/vnd.github.diff",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
         )
+        response.raise_for_status()
+        return response.text
+
+    def _resolve_string(
+        self,
+        name: str,
+        spec: dict[str, Any],
+        provided_values: dict[str, str],
+    ) -> str | None:
+        """Resolve a string input using the multi-source strategy.
+
+        Resolution order:
+        1. Explicit ``--input`` override via *provided_values*.
+        2. ``workflow_dispatch`` event inputs payload field.
+        3. Dot-notation ``source`` mapping against the event payload.
+
+        Args:
+            name: Input name.
+            spec: Input declaration spec dict.
+            provided_values: Caller-supplied explicit values.
+
+        Returns:
+            The resolved string, or ``None`` if no source applies.
+        """
+        # 1. Explicit provided value wins.
+        if name in provided_values:
+            return provided_values[name]
+
+        # 2. workflow_dispatch: check event payload inputs.
+        if self._event_name == "workflow_dispatch":
+            dispatch_inputs: dict[str, Any] = self._event_payload.get(
+                "inputs", {}
+            )
+            if name in dispatch_inputs:
+                return str(dispatch_inputs[name])
+
+        # 3. Dot-notation source mapping.
+        source: str | None = spec.get("source")
+        if source is not None:
+            value = self._traverse_payload(source)
+            if value is not None:
+                return str(value)
+
+        return None
+
+    def _traverse_payload(self, dotpath: str) -> Any:
+        """Traverse the event payload using dot-notation.
+
+        Args:
+            dotpath: Dot-separated key path, e.g. ``"issue.title"``.
+
+        Returns:
+            The value at the given path, or ``None`` if any key is missing.
+        """
+        current: Any = self._event_payload
+        for key in dotpath.split("."):
+            if not isinstance(current, dict):
+                return None
+            current = current.get(key)
+            if current is None:
+                return None
+        return current
 
     def bind_tools(
         self,
