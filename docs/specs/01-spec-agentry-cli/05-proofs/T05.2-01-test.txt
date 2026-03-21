@@ -1,0 +1,66 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_layer3_and_pipeline.py --override-ini="addopts=" -v
+Expected: 54 tests pass covering Layer 3, pipeline orchestration, and budget enforcement
+Timestamp: 2026-03-20T00:00:00Z
+
+============================= test session starts ==============================
+collecting ... collected 54 items
+
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Pass::test_no_writes_always_passes PASSED [  1%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Pass::test_no_writes_with_output_paths_passes PASSED [  3%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Pass::test_declared_path_allows_write PASSED [  5%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Pass::test_prefix_matching_subpath_passes PASSED [  7%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Pass::test_multiple_writes_all_declared_passes PASSED [  9%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Pass::test_multiple_output_paths_uses_correct_prefix PASSED [ 11%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Pass::test_passed_result_layer_is_3 PASSED [ 12%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Pass::test_passed_result_has_no_error PASSED [ 14%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_undeclared_path_fails PASSED [ 16%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_empty_output_paths_blocks_all_writes PASSED [ 18%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_blocked_result_layer_is_3 PASSED [ 20%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_blocked_result_has_error PASSED [ 22%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_blocked_error_has_path_key PASSED [ 24%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_blocked_error_has_output_paths_key PASSED [ 25%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_blocked_error_has_message_key PASSED [ 27%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_blocked_error_message_contains_attempted_path PASSED [ 29%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_blocked_error_message_contains_allowed_paths PASSED [ 31%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_first_undeclared_write_blocks PASSED [ 33%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_partial_prefix_not_allowed PASSED [ 35%]
+tests/unit/test_layer3_and_pipeline.py::TestLayer3Block::test_non_matching_longer_prefix_blocks PASSED [ 37%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineAllPass::test_all_layers_pass_returns_passed PASSED [ 38%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineAllPass::test_all_layers_pass_returns_three_layer_results PASSED [ 40%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineAllPass::test_all_layers_pass_each_layer_result_passed PASSED [ 42%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineAllPass::test_all_layers_pass_layer_numbers_sequential PASSED [ 44%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineAllPass::test_all_layers_pass_with_file_writes_in_allowed_paths PASSED [ 46%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineHaltAtLayer1::test_layer1_failure_halts_at_layer1 PASSED [ 48%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineHaltAtLayer1::test_layer1_failure_result_has_failed_layer1 PASSED [ 50%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineHaltAtLayer2::test_layer2_failure_halts_at_layer2 PASSED [ 51%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineHaltAtLayer2::test_layer2_failure_layer1_passed_layer2_failed PASSED [ 53%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineHaltAtLayer3::test_layer3_failure_halts_at_layer3 PASSED [ 55%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineHaltAtLayer3::test_layer3_failure_layers_1_and_2_passed PASSED [ 57%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineHaltAtLayer3::test_layer3_failure_result_is_failed_status PASSED [ 59%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineToDict::test_passing_pipeline_to_dict_has_three_layer_results PASSED [ 61%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineToDict::test_failing_at_layer3_to_dict_has_correct_status PASSED [ 62%]
+tests/unit/test_layer3_and_pipeline.py::TestPipelineToDict::test_to_dict_layer3_has_error_on_failure PASSED [ 64%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_no_max_findings_returns_unchanged PASSED [ 66%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_findings_within_budget_not_truncated PASSED [ 68%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_findings_equal_budget_not_truncated PASSED [ 70%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_findings_exceed_budget_truncated PASSED [ 72%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_truncation_removes_excess_findings PASSED [ 74%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_truncation_adds_truncation_note PASSED [ 75%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_truncation_note_mentions_count PASSED [ 77%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_truncation_note_mentions_budget PASSED [ 79%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_truncated_count_metadata_is_correct PASSED [ 81%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_original_count_metadata_is_correct PASSED [ 83%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_non_list_findings_not_truncated PASSED [ 85%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_no_findings_key_not_truncated PASSED [ 87%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_other_output_keys_preserved_after_truncation PASSED [ 88%]
+tests/unit/test_layer3_and_pipeline.py::TestApplyBudget::test_original_output_not_mutated PASSED [ 90%]
+tests/unit/test_layer3_and_pipeline.py::TestUndeclaredOutputPathError::test_exception_stores_path PASSED [ 92%]
+tests/unit/test_layer3_and_pipeline.py::TestUndeclaredOutputPathError::test_exception_stores_output_paths PASSED [ 94%]
+tests/unit/test_layer3_and_pipeline.py::TestUndeclaredOutputPathError::test_exception_message_contains_path PASSED [ 96%]
+tests/unit/test_layer3_and_pipeline.py::TestUndeclaredOutputPathError::test_exception_message_contains_allowed_path PASSED [ 98%]
+tests/unit/test_layer3_and_pipeline.py::TestUndeclaredOutputPathError::test_exception_empty_output_paths_shows_none PASSED [100%]
+
+============================== 54 passed in 0.07s ==============================
+
+Status: PASS

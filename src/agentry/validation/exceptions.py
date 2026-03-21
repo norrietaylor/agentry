@@ -50,3 +50,22 @@ class UndeclaredSideEffectError(ValidationError):
             f"Allowed: {allowed}. "
             f"Add {side_effect!r} to output.side_effects in your workflow definition."
         )
+
+
+class UndeclaredOutputPathError(ValidationError):
+    """Raised when an agent writes to a path not in the output_paths list (Layer 3).
+
+    Attributes:
+        path: The file path that was attempted.
+        output_paths: The declared output path prefixes from the workflow definition.
+    """
+
+    def __init__(self, path: str, output_paths: list[str]) -> None:
+        self.path = path
+        self.output_paths = output_paths
+        allowed = ", ".join(repr(p) for p in output_paths) if output_paths else "(none)"
+        super().__init__(
+            f"File write to {path!r} is not within any declared output path. "
+            f"Allowed prefixes: {allowed}. "
+            f"Add an entry to output.output_paths in your workflow definition."
+        )
