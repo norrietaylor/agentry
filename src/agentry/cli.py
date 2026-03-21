@@ -335,12 +335,23 @@ def validate(ctx: click.Context, workflow_paths: tuple[str, ...], security_audit
     type=click.Path(file_okay=False),
     help="Working directory for local execution. Defaults to the current directory.",
 )
+@click.option(
+    "--skip-preflight",
+    "skip_preflight",
+    is_flag=True,
+    default=False,
+    help=(
+        "Skip preflight checks (API key validation, Docker availability, "
+        "filesystem mount verification). Intended for development only."
+    ),
+)
 @click.pass_context
 def run(
     ctx: click.Context,
     workflow_path: str,
     inputs: tuple[str, ...],
     target: str,
+    skip_preflight: bool,
 ) -> None:
     """Execute a workflow definition against a local repository.
 
@@ -349,13 +360,15 @@ def run(
 
     \b
     Options:
-      --input KEY=VALUE   Pass input value (repeatable)
-      --target PATH       Repository to run against (default: cwd)
+      --input KEY=VALUE       Pass input value (repeatable)
+      --target PATH           Repository to run against (default: cwd)
+      --skip-preflight        Skip preflight checks (development only)
 
     \b
     Examples:
       agentry run workflows/code-review.yaml --input diff=HEAD~1
       agentry run workflows/code-review.yaml --input diff=HEAD~1 --target /path/to/repo
+      agentry run workflows/code-review.yaml --skip-preflight
       agentry run workflows/bug-fix.yaml \\
           --input issue-description='Login fails' \\
           --target /path/to/repo
@@ -417,14 +430,16 @@ def run(
         _workflow = load_workflow_file(workflow_path)
         _api_key = os.environ.get("ANTHROPIC_API_KEY", "")
 
-        _checks = [
-            AnthropicAPIKeyCheck(),
-            DockerAvailableCheck(trust=_workflow.safety.trust.value),
-            FilesystemMountsCheck(
-                read_paths=list(_workflow.safety.filesystem.read),
-                write_paths=list(_workflow.safety.filesystem.write),
-            ),
-        ]
+        _checks = []
+        if not skip_preflight:
+            _checks = [
+                AnthropicAPIKeyCheck(),
+                DockerAvailableCheck(trust=_workflow.safety.trust.value),
+                FilesystemMountsCheck(
+                    read_paths=list(_workflow.safety.filesystem.read),
+                    write_paths=list(_workflow.safety.filesystem.write),
+                ),
+            ]
         _runner = _MinimalRunner()
         _phase = SetupPhase(
             workflow=_workflow,
