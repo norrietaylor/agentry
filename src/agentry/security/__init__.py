@@ -37,8 +37,18 @@ Setup:
 - :exc:`~agentry.security.setup.SetupPreflightError` -- Preflight failure.
 - :exc:`~agentry.security.setup.SetupProvisionError` -- Provision failure.
 - :exc:`~agentry.security.setup.SchemaCompilationError` -- Schema invalid.
+
+Concrete checks:
+- :class:`~agentry.security.checks.AnthropicAPIKeyCheck` -- Validates API key.
+- :class:`~agentry.security.checks.DockerAvailableCheck` -- Validates Docker.
+- :class:`~agentry.security.checks.FilesystemMountsCheck` -- Validates paths.
 """
 
+from agentry.security.checks import (
+    AnthropicAPIKeyCheck,
+    DockerAvailableCheck,
+    FilesystemMountsCheck,
+)
 from agentry.security.envelope import (
     EnvelopeResult,
     PreflightCheck,
@@ -77,4 +87,8 @@ __all__ = [
     "SetupPreflightError",
     "SetupProvisionError",
     "fingerprint_credential",
+    # Concrete checks
+    "AnthropicAPIKeyCheck",
+    "DockerAvailableCheck",
+    "FilesystemMountsCheck",
 ]

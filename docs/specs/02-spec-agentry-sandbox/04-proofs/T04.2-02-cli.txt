@@ -1,0 +1,25 @@
+Type: cli
+Command: python3 -c "<smoke test importing and exercising all three check classes>"
+Expected: All checks importable, correct pass/fail behavior for each check
+Timestamp: 2026-03-20T00:00:00Z
+
+Output:
+  PreflightChecker: [FAIL] anthropic_api_key -- ANTHROPIC_API_KEY is not set.
+  Import OK
+  APIKeyCheck missing: passed=False, message='ANTHROPIC_API_KEY is not set.'
+  DockerCheck elevated: passed=True
+  DockerCheck sandboxed/no-docker: passed=False, message="Docker executable 'docker' not found on PATH. Docker is required for sandboxed execution."
+  FSCheck no paths: passed=True
+  FSCheck missing path: passed=False, message='1 declared path(s) do not exist on the host: "/nonexistent/path".'
+  Integrated run_all: 3 results, failures=['anthropic_api_key']
+  All CLI checks OK
+
+Behaviors verified:
+  - AnthropicAPIKeyCheck: missing key returns passed=False with descriptive message
+  - DockerAvailableCheck: elevated trust passes trivially (no-op)
+  - DockerAvailableCheck: sandboxed + no docker returns passed=False with remediation
+  - FilesystemMountsCheck: no paths passes trivially
+  - FilesystemMountsCheck: missing path returns passed=False identifying the path
+  - All three checks integrate with PreflightChecker.run_all()
+
+Status: PASS
