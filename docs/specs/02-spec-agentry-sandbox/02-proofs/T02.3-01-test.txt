@@ -1,0 +1,64 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_network_isolation_verification.py tests/integration/test_network_isolation.py -v
+Expected: All tests pass (48 passed, 2 skipped for Docker-only tests)
+Timestamp: 2026-03-21T04:52:39Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+
+tests/unit/test_network_isolation_verification.py::TestGetExecutionRecordEntries::test_empty_when_no_queries PASSED
+tests/unit/test_network_isolation_verification.py::TestGetExecutionRecordEntries::test_resolved_query_action PASSED
+tests/unit/test_network_isolation_verification.py::TestGetExecutionRecordEntries::test_blocked_query_action PASSED
+tests/unit/test_network_isolation_verification.py::TestGetExecutionRecordEntries::test_entry_fields_present PASSED
+tests/unit/test_network_isolation_verification.py::TestGetExecutionRecordEntries::test_multiple_queries PASSED
+tests/unit/test_network_isolation_verification.py::TestGetExecutionRecordEntries::test_returns_new_list_each_call PASSED
+tests/unit/test_network_isolation_verification.py::TestDNSQueryLogToEntry::test_allowed_becomes_resolved PASSED
+tests/unit/test_network_isolation_verification.py::TestDNSQueryLogToEntry::test_blocked_becomes_blocked PASSED
+tests/unit/test_network_isolation_verification.py::TestDNSQueryLogToEntry::test_to_dict_output PASSED
+tests/unit/test_network_isolation_verification.py::TestBuildDNSQueryEntries::test_empty_proxy_returns_empty PASSED
+tests/unit/test_network_isolation_verification.py::TestBuildDNSQueryEntries::test_converts_all_entries PASSED
+tests/unit/test_network_isolation_verification.py::TestBuildDNSQueryEntries::test_action_mapping PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecord::test_to_dict_includes_dns_queries PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecord::test_to_dict_empty_queries PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecord::test_to_dict_includes_extra_fields PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_creates_file PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_with_dns_proxy PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_resolved_and_blocked_actions PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_with_explicit_dns_queries PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_no_queries PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_execution_id_in_record PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_creates_parent_directory PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_with_extra_fields PASSED
+tests/unit/test_network_isolation_verification.py::TestExecutionRecordWriter::test_write_json_is_valid PASSED
+tests/unit/test_network_isolation_verification.py::TestNetworkIsolationVerifier::test_verify_passes_with_correct_config PASSED
+tests/unit/test_network_isolation_verification.py::TestNetworkIsolationVerifier::test_verify_fails_when_blocked_domain_resolves PASSED
+tests/unit/test_network_isolation_verification.py::TestNetworkIsolationVerifier::test_verify_fails_when_allowed_domain_is_blocked PASSED
+tests/unit/test_network_isolation_verification.py::TestNetworkIsolationVerifier::test_verify_returns_diagnostic_on_failure PASSED
+tests/unit/test_network_isolation_verification.py::TestNetworkIsolationVerifier::test_verify_result_contains_checks PASSED
+tests/unit/test_network_isolation_verification.py::TestNetworkIsolationVerifier::test_verify_metadata_populated PASSED
+tests/unit/test_network_isolation_verification.py::TestNetworkIsolationVerifier::test_isolation_check_result_fields PASSED
+tests/unit/test_network_isolation_verification.py::TestNetworkIsolationVerifier::test_network_isolation_result_all_pass PASSED
+tests/unit/test_network_isolation_verification.py::TestSetupPhaseNetworkIsolation::test_setup_skips_verification_when_no_dns_proxy PASSED
+tests/unit/test_network_isolation_verification.py::TestSetupPhaseNetworkIsolation::test_setup_passes_with_valid_dns_proxy PASSED
+tests/unit/test_network_isolation_verification.py::TestSetupPhaseNetworkIsolation::test_setup_raises_on_isolation_failure PASSED
+tests/integration/test_network_isolation.py::TestDNSProxyFiltering::test_api_anthropic_com_resolves PASSED
+tests/integration/test_network_isolation.py::TestDNSProxyFiltering::test_example_com_blocked_when_not_in_allowlist PASSED
+tests/integration/test_network_isolation.py::TestDNSProxyFiltering::test_blocked_domain_is_logged_as_blocked PASSED
+tests/integration/test_network_isolation.py::TestDNSProxyFiltering::test_allowed_domain_is_logged_as_resolved PASSED
+tests/integration/test_network_isolation.py::TestDNSProxyFiltering::test_both_resolved_and_blocked_logged PASSED
+tests/integration/test_network_isolation.py::TestExecutionRecordIntegration::test_execution_record_contains_dns_queries_section PASSED
+tests/integration/test_network_isolation.py::TestExecutionRecordIntegration::test_execution_record_dns_entries_have_required_fields PASSED
+tests/integration/test_network_isolation.py::TestExecutionRecordIntegration::test_execution_record_at_expected_path PASSED
+tests/integration/test_network_isolation.py::TestExecutionRecordIntegration::test_blocked_entry_in_record_with_timestamp PASSED
+tests/integration/test_network_isolation.py::TestNetworkIsolationVerifierIntegration::test_verifier_passes_with_standard_config PASSED
+tests/integration/test_network_isolation.py::TestNetworkIsolationVerifierIntegration::test_verifier_detects_broken_isolation PASSED
+tests/integration/test_network_isolation.py::TestNetworkIsolationVerifierIntegration::test_verifier_confirms_llm_domain_reachable PASSED
+tests/integration/test_network_isolation.py::TestNetworkIsolationVerifierIntegration::test_verifier_all_checks_documented PASSED
+tests/integration/test_network_isolation.py::TestNetworkIsolationDocker::test_api_anthropic_com_resolves_in_isolated_network SKIPPED (Docker daemon not available)
+tests/integration/test_network_isolation.py::TestNetworkIsolationDocker::test_dns_queries_logged_in_execution_record SKIPPED (Docker daemon not available)
+
+======================== 48 passed, 2 skipped in 0.64s =========================
+
+Status: PASS

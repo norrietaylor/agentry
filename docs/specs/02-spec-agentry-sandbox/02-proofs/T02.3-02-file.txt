@@ -1,0 +1,103 @@
+Type: file
+Description: Execution record JSON at .agentry/runs/TIMESTAMP/execution-record.json contains dns_queries section
+Expected: JSON file with dns_queries array containing entries with domain, action (resolved|blocked), query_type, and timestamp fields
+Timestamp: 2026-03-21T04:52:39Z
+
+--- Demonstration of execution record format ---
+
+Command:
+  python3 -c "
+  import json, tempfile
+  from pathlib import Path
+  from agentry.runners.dns_proxy import DNSFilteringProxy
+  from agentry.runners.execution_record_writer import ExecutionRecordWriter
+
+  proxy = DNSFilteringProxy(
+      allowed_domains=[],
+      provider='anthropic',
+      upstream_resolver=lambda _d, _q: '1.2.3.4',
+  )
+  proxy.resolve_query('api.anthropic.com', 'A')
+  proxy.resolve_query('example.com', 'A')
+  proxy.resolve_query('evil.net', 'A')
+
+  with tempfile.TemporaryDirectory() as tmpdir:
+      runs_dir = Path(tmpdir) / '.agentry' / 'runs'
+      writer = ExecutionRecordWriter(runs_dir=runs_dir)
+      path = writer.write(
+          execution_id='T02.3-demo',
+          dns_proxy=proxy,
+          timestamp='2026-03-20T12:00:00Z',
+      )
+      data = json.loads(path.read_text())
+      print(json.dumps(data, indent=2))
+      print()
+      print('Relative path:', path.relative_to(runs_dir))
+  "
+
+Output:
+{
+  "execution_id": "T02.3-demo",
+  "timestamp": "2026-03-20T12:00:00Z",
+  "dns_queries": [
+    {
+      "domain": "api.anthropic.com",
+      "action": "resolved",
+      "query_type": "A",
+      "timestamp": "2026-03-21T04:52:39Z"
+    },
+    {
+      "domain": "example.com",
+      "action": "blocked",
+      "query_type": "A",
+      "timestamp": "2026-03-21T04:52:39Z"
+    },
+    {
+      "domain": "evil.net",
+      "action": "blocked",
+      "query_type": "A",
+      "timestamp": "2026-03-21T04:52:39Z"
+    }
+  ]
+}
+
+Relative path: 20260320T120000Z/execution-record.json
+
+--- New files created ---
+
+src/agentry/runners/execution_record_writer.py
+  - ExecutionRecordWriter: writes execution-record.json with dns_queries section
+  - DNSQueryEntry: dataclass for a single DNS query record entry
+  - ExecutionRecord: dataclass for the full execution record
+  - dns_query_log_to_entry(): converts DNSQueryLog to DNSQueryEntry (allowed -> resolved|blocked)
+  - build_dns_query_entries(): extracts all entries from a DNSFilteringProxy
+
+src/agentry/runners/network_isolation.py
+  - NetworkIsolationVerifier: verifies DNS filtering proxy blocks unlisted domains
+  - NetworkIsolationResult: aggregate verification result with per-check details
+  - IsolationCheckResult: single check result with diagnostic info
+
+--- Modified files ---
+
+src/agentry/runners/dns_proxy.py
+  - Added get_execution_record_entries(): returns query log as list of dicts
+    with action="resolved"|"blocked" format
+
+src/agentry/security/setup.py
+  - Added NetworkIsolationError exception class
+  - Extended _verify_network_isolation() to use NetworkIsolationVerifier
+    when dns_proxy is present in runner metadata
+  - Added blocked_verification_domain and allowed_verification_domain params
+  - Added _sanitise_runner_metadata() to strip non-JSON-serialisable objects
+
+--- New test files ---
+
+tests/unit/test_network_isolation_verification.py
+  - 35 unit tests for all new functionality
+
+tests/integration/test_network_isolation.py
+  - 15 integration tests (13 pass without Docker, 2 require @pytest.mark.docker)
+  - Demonstrates api.anthropic.com resolves, example.com is blocked
+  - Verifies execution record JSON format
+
+Status: PASS

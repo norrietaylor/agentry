@@ -35,7 +35,6 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -105,6 +104,19 @@ class SetupPreflightError(SetupPhaseError):
 
 class SetupProvisionError(SetupPhaseError):
     """Raised when runner provisioning fails during setup."""
+
+
+class NetworkIsolationError(SetupPhaseError):
+    """Raised when network isolation verification fails during setup.
+
+    Attributes:
+        message: Human-readable failure description including which checks
+            failed and diagnostic guidance.
+    """
+
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(message)
 
 
 class SchemaCompilationError(SetupPhaseError):
@@ -230,6 +242,40 @@ def fingerprint_credential(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
+def _sanitise_runner_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of *metadata* with non-JSON-serialisable values removed.
+
+    Runner metadata may contain Python objects (e.g. a
+    :class:`~agentry.runners.dns_proxy.DNSFilteringProxy` instance or a Docker
+    client) that cannot be serialised to JSON. This function produces a shallow
+    copy that retains only primitive-typed values (str, int, float, bool, None)
+    and recursively sanitised dicts/lists.
+
+    Args:
+        metadata: The raw runner metadata dict.
+
+    Returns:
+        A new dict containing only JSON-serialisable entries.
+    """
+    result: dict[str, Any] = {}
+    for key, value in metadata.items():
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            result[key] = value
+        elif isinstance(value, dict):
+            result[key] = _sanitise_runner_metadata(value)
+        elif isinstance(value, list):
+            safe_list: list[Any] = []
+            for item in value:
+                if isinstance(item, (str, int, float, bool)) or item is None:
+                    safe_list.append(item)
+                elif isinstance(item, dict):
+                    safe_list.append(_sanitise_runner_metadata(item))
+                # Skip non-serialisable items.
+            result[key] = safe_list
+        # Skip other non-serialisable types (objects, etc.).
+    return result
+
+
 def _compile_schema(schema: dict[str, Any]) -> bool:
     """Compile/validate a JSON Schema dict.
 
@@ -298,6 +344,12 @@ class SetupPhase:
         public_key_path: Path to the Ed25519 public key used for signature
             verification.  Defaults to ``DEFAULT_PUBLIC_KEY_PATH``
             (``.agentry/public-key.pem`` relative to cwd).
+        blocked_verification_domain: Domain used to verify that isolation is
+            active during :meth:`_verify_network_isolation`. Defaults to
+            ``"example.com"``. Override in tests to use a domain that is
+            explicitly added to the allow list to trigger a failure.
+        allowed_verification_domain: Domain used to verify that the LLM API
+            is reachable. Defaults to ``"api.anthropic.com"``.
     """
 
     def __init__(
@@ -310,6 +362,8 @@ class SetupPhase:
         runs_dir: Path | None = None,
         workflow_path: Path | str | None = None,
         public_key_path: Path | None = None,
+        blocked_verification_domain: str = "example.com",
+        allowed_verification_domain: str = "api.anthropic.com",
     ) -> None:
         self._workflow = workflow
         self._runner = runner
@@ -319,6 +373,8 @@ class SetupPhase:
         self._runs_dir = runs_dir or (Path.cwd() / ".agentry" / "runs")
         self._workflow_path = Path(workflow_path) if workflow_path else None
         self._public_key_path = public_key_path or DEFAULT_PUBLIC_KEY_PATH
+        self._blocked_verification_domain = blocked_verification_domain
+        self._allowed_verification_domain = allowed_verification_domain
 
     # ------------------------------------------------------------------
     # Public API
@@ -337,6 +393,7 @@ class SetupPhase:
             SetupProvisionError: When ``runner.provision()`` fails.
             SetupSignatureError: When a signature block is present but
                 verification fails.
+            NetworkIsolationError: When network isolation verification fails.
             SchemaCompilationError: When the output schema is invalid.
         """
         result = SetupPhaseResult()
@@ -352,9 +409,14 @@ class SetupPhase:
             result.error = f"Runner provisioning failed: {exc}"
             raise SetupProvisionError(result.error) from exc
 
-        # Step 3: Verify network isolation (log metadata; teardown is caller's
-        # responsibility or happens in SecurityEnvelope).
-        self._verify_network_isolation(runner_meta)
+        # Step 3: Verify network isolation. When the runner metadata includes
+        # a dns_proxy, the verifier confirms that blocking is active and raises
+        # NetworkIsolationError if verification fails.
+        try:
+            self._verify_network_isolation(runner_meta)
+        except NetworkIsolationError:
+            result.aborted = True
+            raise
 
         # Step 4: Run preflight checks.
         for check in self._preflight_checks:
@@ -469,26 +531,71 @@ class SetupPhase:
             raise SetupSignatureError(str(exc)) from exc
 
     def _verify_network_isolation(self, runner_metadata: dict[str, Any]) -> None:
-        """Log network isolation metadata for Docker runners.
+        """Verify network isolation for Docker sandbox runners.
 
-        For non-Docker runners this is a no-op.  Actual isolation is enforced
-        by the Docker network (``internal=True``); here we just confirm the
-        metadata is present.
+        When the runner metadata includes a ``dns_proxy`` entry (a
+        :class:`~agentry.runners.dns_proxy.DNSFilteringProxy` instance
+        attached during provisioning), this method uses
+        :class:`~agentry.runners.network_isolation.NetworkIsolationVerifier`
+        to confirm that:
+
+        - A known-blocked domain (``example.com``) is rejected.
+        - The LLM API domain (``api.anthropic.com``) is allowed.
+
+        If verification fails, :class:`NetworkIsolationError` is raised to
+        abort the setup phase with a diagnostic.
+
+        For non-Docker runners (or when no ``dns_proxy`` is present in
+        metadata), this step is skipped with a debug log.
 
         Args:
             runner_metadata: Metadata dict returned by ``runner.provision()``.
+
+        Raises:
+            NetworkIsolationError: When isolation checks fail.
         """
-        network_id = runner_metadata.get("network_id") or runner_metadata.get(
-            "network"
+        from agentry.runners.network_isolation import NetworkIsolationVerifier
+
+        dns_proxy = runner_metadata.get("dns_proxy")
+        network_id = runner_metadata.get("network_id") or runner_metadata.get("network")
+
+        if dns_proxy is None:
+            if network_id:
+                logger.info(
+                    "SetupPhase: network_id=%s present but no dns_proxy; "
+                    "skipping DNS isolation verification",
+                    network_id,
+                )
+            else:
+                logger.debug(
+                    "SetupPhase: no dns_proxy in runner metadata; "
+                    "skipping network isolation verification"
+                )
+            return
+
+        logger.info(
+            "SetupPhase: verifying network isolation via DNS filtering proxy"
         )
-        if network_id:
-            logger.info(
-                "SetupPhase: network isolation verified (network_id=%s)", network_id
-            )
-        else:
-            logger.debug(
-                "SetupPhase: no network_id in runner metadata; skipping network isolation verification"
-            )
+
+        docker_client = runner_metadata.get("docker_client")
+        container_id = runner_metadata.get("container_id", "")
+
+        verifier = NetworkIsolationVerifier(
+            proxy=dns_proxy,
+            blocked_domain=self._blocked_verification_domain,
+            allowed_domain=self._allowed_verification_domain,
+            docker_client=docker_client,
+            container_id=container_id,
+        )
+        result = verifier.verify()
+
+        if not result.passed:
+            raise NetworkIsolationError(result.diagnostic)
+
+        logger.info(
+            "SetupPhase: network isolation verified (%d check(s) passed)",
+            len(result.checks),
+        )
 
     def _build_manifest(
         self,
@@ -529,6 +636,10 @@ class SetupPhase:
             for r in preflight_results
         ]
 
+        # Sanitise runner metadata to remove non-JSON-serialisable objects
+        # (e.g. DNSFilteringProxy instances, Docker client objects).
+        serialisable_metadata = _sanitise_runner_metadata(runner_metadata)
+
         return SetupManifest(
             workflow_name=identity.name,
             workflow_version=identity.version,
@@ -542,7 +653,7 @@ class SetupPhase:
             credential_fingerprints=fingerprints,
             sandbox_tier=safety.trust.value,
             timestamp=datetime.now(timezone.utc).isoformat(),
-            runner_metadata=runner_metadata,
+            runner_metadata=serialisable_metadata,
             preflight_results=serialised_preflight,
         )
 

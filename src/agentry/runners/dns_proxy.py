@@ -440,6 +440,32 @@ class DNSFilteringProxy:
         self._running = False
 
     # ------------------------------------------------------------------
+    # Execution record helpers
+    # ------------------------------------------------------------------
+
+    def get_execution_record_entries(self) -> list[dict[str, Any]]:
+        """Return DNS query log entries formatted for the execution record.
+
+        Each entry maps directly to an element of the ``dns_queries`` array
+        in the execution record JSON. The ``allowed`` boolean is translated to
+        an ``action`` string: ``"resolved"`` when the domain was allowed,
+        ``"blocked"`` when it was rejected with NXDOMAIN.
+
+        Returns:
+            A list of dicts, each containing ``domain``, ``action``,
+            ``query_type``, and ``timestamp`` keys.
+        """
+        return [
+            {
+                "domain": log.domain,
+                "action": "resolved" if log.allowed else "blocked",
+                "query_type": log.query_type,
+                "timestamp": log.timestamp,
+            }
+            for log in self._query_log
+        ]
+
+    # ------------------------------------------------------------------
     # Docker sidecar helpers
     # ------------------------------------------------------------------
 
