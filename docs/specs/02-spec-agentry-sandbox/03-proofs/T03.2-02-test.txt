@@ -1,0 +1,8 @@
+Type: test
+Command: python3 -m pytest tests/ -q
+Expected: All 636 tests pass (full test suite including prior tests plus new SetupPhase tests - no regressions)
+Timestamp: 2026-03-20T00:00:00Z
+
+============================= 636 passed in 7.01s ==============================
+
+Status: PASS

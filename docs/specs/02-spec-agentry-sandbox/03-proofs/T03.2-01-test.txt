@@ -1,0 +1,56 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_setup_phase.py -v
+Expected: All tests pass (41 tests covering SetupPhase, SetupManifest, fingerprint_credential, credential fingerprinting, manifest persistence, preflight checks, provision errors, and schema compilation)
+Timestamp: 2026-03-20T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+collected 41 items
+
+tests/unit/test_setup_phase.py::TestFingerprintCredential::test_returns_sha256_hex PASSED
+tests/unit/test_setup_phase.py::TestFingerprintCredential::test_different_keys_produce_different_fingerprints PASSED
+tests/unit/test_setup_phase.py::TestFingerprintCredential::test_empty_string_fingerprint PASSED
+tests/unit/test_setup_phase.py::TestFingerprintCredential::test_fingerprint_is_64_hex_chars PASSED
+tests/unit/test_setup_phase.py::TestFingerprintCredential::test_fingerprint_does_not_contain_original_value PASSED
+tests/unit/test_setup_phase.py::TestSetupManifest::test_to_dict_contains_all_required_fields PASSED
+tests/unit/test_setup_phase.py::TestSetupManifest::test_to_dict_filesystem_structure PASSED
+tests/unit/test_setup_phase.py::TestSetupManifest::test_to_dict_resources_structure PASSED
+tests/unit/test_setup_phase.py::TestSetupManifest::test_to_dict_network_structure PASSED
+tests/unit/test_setup_phase.py::TestSetupManifest::test_to_dict_is_json_serialisable PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_run_returns_result_with_manifest PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_run_provisions_runner PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_manifest_contains_workflow_version PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_manifest_contains_container_image PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_manifest_contains_filesystem_paths PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_manifest_contains_network_egress_rules PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_manifest_contains_resource_limits PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_manifest_contains_sandbox_tier PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_manifest_contains_timestamp PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSuccess::test_schema_compiled_on_success PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseCredentialFingerprinting::test_api_key_fingerprinted_not_stored PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseCredentialFingerprinting::test_no_api_key_no_fingerprint PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseCredentialFingerprinting::test_extra_credentials_fingerprinted PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseCredentialFingerprinting::test_manifest_json_does_not_contain_raw_key PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseManifestPersistence::test_manifest_saved_to_runs_directory PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseManifestPersistence::test_manifest_file_is_valid_json PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseManifestPersistence::test_manifest_json_has_all_required_keys PASSED
+tests/unit/test_setup_phase.py::TestSetupPhasePreflightChecks::test_passing_checks_recorded_in_result PASSED
+tests/unit/test_setup_phase.py::TestSetupPhasePreflightChecks::test_first_failing_check_aborts PASSED
+tests/unit/test_setup_phase.py::TestSetupPhasePreflightChecks::test_failing_check_result_captured PASSED
+tests/unit/test_setup_phase.py::TestSetupPhasePreflightChecks::test_preflight_checks_in_manifest PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseProvisionError::test_provision_failure_raises_setup_provision_error PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseProvisionError::test_provision_failure_is_setup_phase_error PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseProvisionError::test_provision_failure_aborted_result PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSchemaCompilation::test_valid_schema_compiles PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSchemaCompilation::test_empty_schema_compiles PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseSchemaCompilation::test_schema_compilation_error_is_setup_phase_error PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseExceptionHierarchy::test_setup_preflight_error_is_setup_phase_error PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseExceptionHierarchy::test_setup_provision_error_is_setup_phase_error PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseExceptionHierarchy::test_schema_compilation_error_is_setup_phase_error PASSED
+tests/unit/test_setup_phase.py::TestSetupPhaseExceptionHierarchy::test_setup_preflight_error_fields PASSED
+
+============================== 41 passed in 0.40s ==============================
+
+Status: PASS
