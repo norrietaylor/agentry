@@ -1,0 +1,76 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_workflow_models.py -v --tb=short
+Expected: All tests pass
+Timestamp: 2026-03-20T00:00:00Z
+Status: PASS
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 59 items
+
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_valid_identity PASSED [  1%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_semver_major_minor_patch PASSED [  3%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_semver_with_prerelease PASSED [  5%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_semver_with_build_metadata PASSED [  6%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_invalid_semver_rejected PASSED [  8%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_invalid_semver_missing_patch PASSED [ 10%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_invalid_semver_letters PASSED [ 11%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_unknown_key_rejected PASSED [ 13%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_missing_required_name PASSED [ 15%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_missing_required_version PASSED [ 16%]
+tests/unit/test_workflow_models.py::TestIdentityBlock::test_missing_required_description PASSED [ 18%]
+tests/unit/test_workflow_models.py::TestGitDiffInput::test_valid_git_diff PASSED [ 20%]
+tests/unit/test_workflow_models.py::TestGitDiffInput::test_defaults PASSED [ 22%]
+tests/unit/test_workflow_models.py::TestGitDiffInput::test_unknown_key_rejected PASSED [ 23%]
+tests/unit/test_workflow_models.py::TestRepositoryRefInput::test_valid_repository_ref PASSED [ 25%]
+tests/unit/test_workflow_models.py::TestRepositoryRefInput::test_defaults PASSED [ 27%]
+tests/unit/test_workflow_models.py::TestDocumentRefInput::test_valid_document_ref PASSED [ 28%]
+tests/unit/test_workflow_models.py::TestDocumentRefInput::test_defaults PASSED [ 30%]
+tests/unit/test_workflow_models.py::TestStringInput::test_valid_string_input PASSED [ 32%]
+tests/unit/test_workflow_models.py::TestStringInput::test_default_value PASSED [ 33%]
+tests/unit/test_workflow_models.py::TestToolsBlock::test_empty_capabilities PASSED [ 35%]
+tests/unit/test_workflow_models.py::TestToolsBlock::test_with_capabilities PASSED [ 37%]
+tests/unit/test_workflow_models.py::TestToolsBlock::test_unknown_key_rejected PASSED [ 38%]
+tests/unit/test_workflow_models.py::TestModelBlock::test_defaults PASSED [ 40%]
+tests/unit/test_workflow_models.py::TestModelBlock::test_custom_values PASSED [ 42%]
+tests/unit/test_workflow_models.py::TestModelBlock::test_temperature_out_of_range PASSED [ 44%]
+tests/unit/test_workflow_models.py::TestModelBlock::test_max_tokens_zero_rejected PASSED [ 45%]
+tests/unit/test_workflow_models.py::TestModelBlock::test_retry_config_defaults PASSED [ 47%]
+tests/unit/test_workflow_models.py::TestModelBlock::test_retry_config_custom PASSED [ 49%]
+tests/unit/test_workflow_models.py::TestModelBlock::test_unknown_key_rejected PASSED [ 50%]
+tests/unit/test_workflow_models.py::TestSafetyBlock::test_defaults PASSED [ 52%]
+tests/unit/test_workflow_models.py::TestSafetyBlock::test_custom_timeout PASSED [ 54%]
+tests/unit/test_workflow_models.py::TestSafetyBlock::test_timeout_zero_rejected PASSED [ 55%]
+tests/unit/test_workflow_models.py::TestSafetyBlock::test_unknown_key_rejected PASSED [ 57%]
+tests/unit/test_workflow_models.py::TestOutputBlock::test_defaults PASSED [ 59%]
+tests/unit/test_workflow_models.py::TestOutputBlock::test_with_schema PASSED [ 61%]
+tests/unit/test_workflow_models.py::TestOutputBlock::test_with_side_effects PASSED [ 62%]
+tests/unit/test_workflow_models.py::TestOutputBlock::test_with_output_paths PASSED [ 64%]
+tests/unit/test_workflow_models.py::TestOutputBlock::test_budget_max_findings PASSED [ 66%]
+tests/unit/test_workflow_models.py::TestOutputBlock::test_budget_max_findings_zero_rejected PASSED [ 67%]
+tests/unit/test_workflow_models.py::TestOutputBlock::test_unknown_key_rejected PASSED [ 69%]
+tests/unit/test_workflow_models.py::TestCompositionBlock::test_defaults PASSED [ 71%]
+tests/unit/test_workflow_models.py::TestCompositionBlock::test_with_steps PASSED [ 72%]
+tests/unit/test_workflow_models.py::TestCompositionBlock::test_unknown_key_on_step_rejected PASSED [ 74%]
+tests/unit/test_workflow_models.py::TestWorkflowDefinition::test_minimal_workflow PASSED [ 76%]
+tests/unit/test_workflow_models.py::TestWorkflowDefinition::test_full_workflow PASSED [ 77%]
+tests/unit/test_workflow_models.py::TestWorkflowDefinition::test_unknown_top_level_key_rejected PASSED [ 79%]
+tests/unit/test_workflow_models.py::TestWorkflowDefinition::test_unknown_nested_key_rejected PASSED [ 81%]
+tests/unit/test_workflow_models.py::TestVariableReferenceValidation::test_valid_input_reference PASSED [ 83%]
+tests/unit/test_workflow_models.py::TestVariableReferenceValidation::test_well_known_variable_accepted PASSED [ 84%]
+tests/unit/test_workflow_models.py::TestVariableReferenceValidation::test_undefined_variable_rejected PASSED [ 86%]
+tests/unit/test_workflow_models.py::TestVariableReferenceValidation::test_multiple_undefined_variables PASSED [ 88%]
+tests/unit/test_workflow_models.py::TestVariableReferenceValidation::test_no_variables_is_fine PASSED [ 89%]
+tests/unit/test_workflow_models.py::TestDiscriminatedUnionInWorkflow::test_git_diff_input_via_dict PASSED [ 91%]
+tests/unit/test_workflow_models.py::TestDiscriminatedUnionInWorkflow::test_repository_ref_input_via_dict PASSED [ 93%]
+tests/unit/test_workflow_models.py::TestDiscriminatedUnionInWorkflow::test_document_ref_input_via_dict PASSED [ 94%]
+tests/unit/test_workflow_models.py::TestDiscriminatedUnionInWorkflow::test_string_input_via_dict PASSED [ 96%]
+tests/unit/test_workflow_models.py::TestDiscriminatedUnionInWorkflow::test_invalid_input_type_rejected PASSED [ 98%]
+tests/unit/test_workflow_models.py::TestDiscriminatedUnionInWorkflow::test_git_diff_missing_type_rejected PASSED [100%]
+
+============================== 59 passed in 0.09s ==============================
