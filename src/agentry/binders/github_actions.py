@@ -14,6 +14,14 @@ from typing import Any
 
 import httpx
 
+from agentry.binders.exceptions import UnsupportedToolError
+from agentry.binders.local import _make_repository_read, _make_shell_execute
+
+# Tools supported by the GitHub Actions binder.
+SUPPORTED_TOOLS: frozenset[str] = frozenset(
+    {"repository:read", "shell:execute", "pr:comment", "pr:review"}
+)
+
 
 class GitHubActionsBinder:
     """Environment binder for GitHub Actions CI execution.
@@ -268,18 +276,204 @@ class GitHubActionsBinder:
     ) -> dict[str, Any]:
         """Bind declared tool names to their GitHub Actions implementations.
 
-        Not yet implemented; will be filled in by T02.1.
+        Wires the following tools to CI-aware implementations:
+
+        - ``repository:read``: Reads files from :attr:`workspace`
+          (``$GITHUB_WORKSPACE``) with path traversal protection.
+        - ``shell:execute``: Enforces the same read-only command allowlist as
+          :class:`~agentry.binders.local.LocalBinder`.
+        - ``pr:comment``: Posts a comment to the current pull request via the
+          GitHub REST API (``POST /repos/{owner}/{repo}/issues/{number}/comments``).
+        - ``pr:review``: Creates a review on the current pull request via the
+          GitHub REST API (``POST /repos/{owner}/{repo}/pulls/{number}/reviews``).
 
         Args:
-            tool_declarations: Tool identifiers declared in the workflow.
+            tool_declarations: Tool identifiers declared in the workflow
+                (e.g. ``["repository:read", "pr:comment"]``).
+
+        Returns:
+            Mapping of tool name to a concrete callable implementation.
 
         Raises:
-            NotImplementedError: Always. Implementation is deferred to T02.1.
+            UnsupportedToolError: If any declared tool is not in
+                :data:`SUPPORTED_TOOLS`.
         """
-        raise NotImplementedError(
-            "bind_tools() is not yet implemented for the GitHub Actions binder. "
-            "This method will be implemented in T02.1."
-        )
+        bindings: dict[str, Any] = {}
+        for tool_name in tool_declarations:
+            if tool_name not in SUPPORTED_TOOLS:
+                raise UnsupportedToolError(tool_name, self.name)
+            if tool_name == "repository:read":
+                # Root the repository read at GITHUB_WORKSPACE.
+                workspace = self._workspace
+                _reader = _make_repository_read()
+
+                def _repository_read_ci(
+                    *, path: str, _workspace: str = workspace, _reader: Any = _reader
+                ) -> str:
+                    return _reader(repo_root=_workspace, path=path)
+
+                _repository_read_ci.__name__ = "repository_read"
+                bindings[tool_name] = _repository_read_ci
+            elif tool_name == "shell:execute":
+                bindings[tool_name] = _make_shell_execute()
+            elif tool_name == "pr:comment":
+                bindings[tool_name] = self._make_pr_comment()
+            elif tool_name == "pr:review":
+                bindings[tool_name] = self._make_pr_review()
+        return bindings
+
+    # ------------------------------------------------------------------
+    # Private helpers for bind_tools
+    # ------------------------------------------------------------------
+
+    def _make_pr_comment(self) -> Any:
+        """Return a callable that posts a PR comment via the GitHub API.
+
+        The callable signature is::
+
+            def pr_comment(*, body: str) -> dict[str, Any]: ...
+
+        Args:
+            body: The comment body text (Markdown supported).
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            ValueError: If the current event is not a pull_request (no PR number).
+            RuntimeError: On GitHub API errors with HTTP status, body snippet, and
+                remediation hint.
+        """
+        repository = self._repository
+        token = self._token
+        pr_number = self._pr_number
+
+        def pr_comment(*, body: str) -> dict[str, Any]:
+            if pr_number is None:
+                raise ValueError(
+                    "pr:comment requires a pull_request event, but the current "
+                    "event does not have a PR number."
+                )
+            url = f"https://api.github.com/repos/{repository}/issues/{pr_number}/comments"
+            try:
+                response = httpx.post(
+                    url,
+                    json={"body": body},
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                )
+                response.raise_for_status()
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Network timeout while posting PR comment to GitHub API. "
+                    "Check your network connection or increase the timeout."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                body_snippet = exc.response.text[:200]
+                if status == 403:
+                    remediation = (
+                        "GITHUB_TOKEN may lack `pull_requests:write` scope. "
+                        "Ensure the workflow has `pull-requests: write` permissions."
+                    )
+                elif status == 404:
+                    remediation = (
+                        f"PR #{pr_number} not found in repository {repository!r}. "
+                        "Verify the repository name and PR number are correct."
+                    )
+                else:
+                    remediation = "Check GitHub API status and token permissions."
+                raise RuntimeError(
+                    f"{status} error posting PR comment: {body_snippet}. "
+                    f"{remediation}"
+                ) from exc
+            return response.json()
+
+        pr_comment.__name__ = "pr_comment"
+        return pr_comment
+
+    def _make_pr_review(self) -> Any:
+        """Return a callable that creates a PR review via the GitHub API.
+
+        The callable signature is::
+
+            def pr_review(*, body: str, event: str = "COMMENT",
+                          comments: list[dict[str, Any]] | None = None) -> dict[str, Any]: ...
+
+        Args:
+            body: The review body text.
+            event: One of ``"APPROVE"``, ``"REQUEST_CHANGES"``, ``"COMMENT"``.
+            comments: Optional list of inline review comments.
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            ValueError: If the current event is not a pull_request (no PR number).
+            RuntimeError: On GitHub API errors with HTTP status, body snippet, and
+                remediation hint.
+        """
+        repository = self._repository
+        token = self._token
+        pr_number = self._pr_number
+
+        def pr_review(
+            *,
+            body: str,
+            event: str = "COMMENT",
+            comments: list[dict[str, Any]] | None = None,
+        ) -> dict[str, Any]:
+            if pr_number is None:
+                raise ValueError(
+                    "pr:review requires a pull_request event, but the current "
+                    "event does not have a PR number."
+                )
+            url = f"https://api.github.com/repos/{repository}/pulls/{pr_number}/reviews"
+            payload: dict[str, Any] = {"body": body, "event": event}
+            if comments is not None:
+                payload["comments"] = comments
+            try:
+                response = httpx.post(
+                    url,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                )
+                response.raise_for_status()
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Network timeout while creating PR review via GitHub API. "
+                    "Check your network connection or increase the timeout."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                body_snippet = exc.response.text[:200]
+                if status == 403:
+                    remediation = (
+                        "GITHUB_TOKEN may lack `pull_requests:write` scope. "
+                        "Ensure the workflow has `pull-requests: write` permissions."
+                    )
+                elif status == 404:
+                    remediation = (
+                        f"PR #{pr_number} not found in repository {repository!r}. "
+                        "Verify the repository name and PR number are correct."
+                    )
+                else:
+                    remediation = "Check GitHub API status and token permissions."
+                raise RuntimeError(
+                    f"{status} error creating PR review: {body_snippet}. "
+                    f"{remediation}"
+                ) from exc
+            return response.json()
+
+        pr_review.__name__ = "pr_review"
+        return pr_review
 
     def map_outputs(
         self,
