@@ -483,20 +483,117 @@ class GitHubActionsBinder:
     ) -> dict[str, str]:
         """Map output declarations to GitHub Actions step output paths.
 
-        Not yet implemented; will be filled in by T02.2.
+        Writes the agent output to ``$GITHUB_WORKSPACE/.agentry/runs/<run_id>/output.json``
+        and, when the current event is a pull request, also posts the output as a
+        PR comment via the GitHub REST API.
+
+        The ``target_dir`` parameter is accepted for protocol compatibility but the
+        actual output is always rooted at ``$GITHUB_WORKSPACE`` in CI.
 
         Args:
-            output_declarations: The workflow's output block.
-            target_dir: Absolute path to the target directory.
+            output_declarations: The workflow's output block.  May contain an
+                ``output_paths`` list of additional file names to include in the
+                mapping.
+            target_dir: Accepted for protocol compatibility (ignored in CI; the
+                GitHub Actions binder always uses ``$GITHUB_WORKSPACE``).
             run_id: Timestamp-based identifier, e.g. ``"20260101T120000"``.
 
+        Returns:
+            Mapping of logical output name to absolute path string, always
+            including ``"output"`` and ``"execution_record"`` keys.
+
         Raises:
-            NotImplementedError: Always. Implementation is deferred to T02.2.
+            RuntimeError: On GitHub API errors when attempting to post the PR
+                comment.  Error messages include the HTTP status, a body snippet,
+                and a suggested remediation.
         """
-        raise NotImplementedError(
-            "map_outputs() is not yet implemented for the GitHub Actions binder. "
-            "This method will be implemented in T02.2."
+        # Always root output at GITHUB_WORKSPACE so CI paths are deterministic.
+        runs_dir = Path(self._workspace) / ".agentry" / "runs" / run_id
+        runs_dir.mkdir(parents=True, exist_ok=True)
+
+        output_path = runs_dir / "output.json"
+        execution_record_path = runs_dir / "execution-record.json"
+
+        paths: dict[str, str] = {
+            "output": str(output_path),
+            "execution_record": str(execution_record_path),
+        }
+
+        # Preserve any extra declared output paths.
+        for declared_path in output_declarations.get("output_paths", []):
+            name = Path(declared_path).stem
+            paths[name] = str(runs_dir / Path(declared_path).name)
+
+        # When the event is a pull request, post the output as a PR comment.
+        if self._pr_number is not None:
+            # Read the output file content for the PR comment body, if it exists.
+            comment_body: str
+            if output_path.exists():
+                try:
+                    comment_body = output_path.read_text(encoding="utf-8")
+                except OSError:
+                    comment_body = str(output_path)
+            else:
+                comment_body = f"Agent run output: {output_path}"
+
+            self._post_output_comment(comment_body)
+
+        return paths
+
+    def _post_output_comment(self, body: str) -> dict[str, Any]:
+        """Post agent output as a PR comment via the GitHub REST API.
+
+        Args:
+            body: The comment body text (Markdown supported).
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            RuntimeError: On GitHub API errors with HTTP status, response body
+                snippet, and remediation hint.
+        """
+        url = (
+            f"https://api.github.com/repos/{self._repository}"
+            f"/issues/{self._pr_number}/comments"
         )
+        try:
+            response = httpx.post(
+                url,
+                json={"body": body},
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(
+                "Network timeout while posting output PR comment to GitHub API. "
+                "Check your network connection or increase the timeout."
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            body_snippet = exc.response.text[:200]
+            if status == 403:
+                remediation = (
+                    "GITHUB_TOKEN may lack `pull_requests:write` scope. "
+                    "Ensure the workflow has `pull-requests: write` permissions."
+                )
+            elif status == 404:
+                remediation = (
+                    f"PR #{self._pr_number} not found in repository "
+                    f"{self._repository!r}. "
+                    "Verify the repository name and PR number are correct."
+                )
+            else:
+                remediation = "Check GitHub API status and token permissions."
+            raise RuntimeError(
+                f"{status} error posting output PR comment: {body_snippet}. "
+                f"{remediation}"
+            ) from exc
+        return response.json()
 
     def generate_pipeline_config(self) -> dict[str, Any]:
         """Generate CI pipeline configuration for GitHub Actions.
