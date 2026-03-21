@@ -1,0 +1,17 @@
+Type: cli
+Command: python3 smoke test for data_passing module (inline script)
+Expected: All 6 smoke test cases PASS
+Timestamp: 2026-03-21T00:00:00Z
+
+=== OUTPUT ===
+PASS: write_node_output
+PASS: extract_field - found field
+PASS: extract_field raises DataPassingError for missing field: Field 'nonexistent' not found in '/private/var/folders/.../step-a/result.json'. Available fields: ['count', 'summary']
+PASS: resolve_node_inputs - .output form
+PASS: resolve_node_inputs - field extraction form
+PASS: resolve_node_inputs - skip failure path
+PASS: DataPassingError raised for missing upstream: Step 'step-e' input 'x' references upstream node 'missing-node', but that node has no output available and is not in the failures map.
+
+All smoke tests passed.
+
+Status: PASS

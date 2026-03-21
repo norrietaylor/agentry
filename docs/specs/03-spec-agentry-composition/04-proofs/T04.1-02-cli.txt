@@ -1,0 +1,9 @@
+Type: cli
+Command: python3 -m mypy src/agentry/composition/data_passing.py
+Expected: Success: no issues found in 1 source file
+Timestamp: 2026-03-21T00:00:00Z
+
+=== OUTPUT ===
+Success: no issues found in 1 source file
+
+Status: PASS
