@@ -1,0 +1,14 @@
+Type: cli
+Command: python3 -c "... (functional tests for CompositionStep/CompositionBlock extensions)"
+Expected: All backward-compatibility and new-field tests pass
+Timestamp: 2026-03-20T00:00:00Z
+
+--- OUTPUT ---
+PASS: backward compatibility
+PASS: full new fields
+PASS: node_ids property
+PASS: extra fields forbidden
+
+ALL TESTS PASSED
+
+Status: PASS

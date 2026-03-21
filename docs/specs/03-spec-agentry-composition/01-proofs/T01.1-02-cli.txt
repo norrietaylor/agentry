@@ -1,0 +1,10 @@
+Type: cli
+Command: ruff check src/agentry/models/composition.py && python3 -m mypy src/agentry/models/composition.py
+Expected: No lint errors, no type errors
+Timestamp: 2026-03-20T00:00:00Z
+
+--- OUTPUT ---
+All checks passed!
+Success: no issues found in 1 source file
+
+Status: PASS
