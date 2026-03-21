@@ -1,0 +1,10 @@
+Type: cli
+Command: python3 -c "import inspect; from agentry.composition.engine import CompositionEngine; ..."
+Expected: CompositionEngine.__init__ accepts on_node_start, on_node_complete, on_node_fail, on_node_skip callbacks
+Timestamp: 2026-03-21T00:00:00Z
+
+OUTPUT:
+CompositionEngine has callback hooks: ['on_node_start', 'on_node_complete', 'on_node_fail', 'on_node_skip']
+PASS
+
+Status: PASS

@@ -1,0 +1,10 @@
+Type: cli
+Command: python3 -c "import pathlib; source = pathlib.Path('src/agentry/cli.py').read_text(); assert 'CompositionDisplay' in source; ..."
+Expected: cli.py wires CompositionDisplay with all four callback hooks and calls print_summary
+Timestamp: 2026-03-21T00:00:00Z
+
+OUTPUT:
+CLI wiring verified: CompositionDisplay integrated into run command
+PASS
+
+Status: PASS

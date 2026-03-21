@@ -25,6 +25,7 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,10 @@ class CompositionEngine:
         binder: LocalBinder,
         run_dir: Path,
         workflow_base_dir: Path,
+        on_node_start: Callable[[str], None] | None = None,
+        on_node_complete: Callable[[str, float], None] | None = None,
+        on_node_fail: Callable[[str, str], None] | None = None,
+        on_node_skip: Callable[[str], None] | None = None,
     ) -> None:
         self._composition = composition
         self._runner_detector = runner_detector
@@ -77,9 +82,17 @@ class CompositionEngine:
         self._run_dir = run_dir
         self._workflow_base_dir = workflow_base_dir
 
+        # Optional event callbacks for progress display.
+        self._on_node_start = on_node_start
+        self._on_node_complete = on_node_complete
+        self._on_node_fail = on_node_fail
+        self._on_node_skip = on_node_skip
+
         # Per-node execution records, populated during execute().
         self._node_records: dict[str, ExecutionRecord | None] = {}
         self._node_statuses: dict[str, NodeStatus] = {}
+        # Per-node wall-clock start times for duration reporting.
+        self._node_start_times: dict[str, float] = {}
 
     async def execute(self) -> CompositionRecord:
         """Execute all composition nodes in topological order.
@@ -159,6 +172,14 @@ class CompositionEngine:
         node_id = step.node_id
         logger.info("Executing composition node: %s", node_id)
 
+        # Fire the node-start callback.
+        self._node_start_times[node_id] = time.time()
+        if self._on_node_start is not None:
+            try:
+                self._on_node_start(node_id)
+            except Exception:  # noqa: BLE001
+                logger.debug("on_node_start callback raised", exc_info=True)
+
         # Resolve node inputs (placeholder for T04 data passing).
         _resolved_inputs = self._resolve_node_inputs(step)
 
@@ -198,8 +219,21 @@ class CompositionEngine:
             self._node_records[node_id] = exec_record
             if exec_record is not None and exec_record.error:
                 self._node_statuses[node_id] = NodeStatus.FAILED
+                # Fire fail callback — the execution record carried an error.
+                _duration = time.time() - self._node_start_times.get(node_id, time.time())
+                if self._on_node_fail is not None:
+                    try:
+                        self._on_node_fail(node_id, exec_record.error)
+                    except Exception:  # noqa: BLE001
+                        logger.debug("on_node_fail callback raised", exc_info=True)
             else:
                 self._node_statuses[node_id] = NodeStatus.COMPLETED
+                _duration = time.time() - self._node_start_times.get(node_id, time.time())
+                if self._on_node_complete is not None:
+                    try:
+                        self._on_node_complete(node_id, _duration)
+                    except Exception:  # noqa: BLE001
+                        logger.debug("on_node_complete callback raised", exc_info=True)
 
         except Exception as exc:
             logger.error(
@@ -213,6 +247,12 @@ class CompositionEngine:
                 # Create a minimal error record.
                 error_record = ExecutionRecord(error=str(exc))
                 self._node_records[node_id] = error_record
+                # Fire fail callback.
+                if self._on_node_fail is not None:
+                    try:
+                        self._on_node_fail(node_id, str(exc))
+                    except Exception:  # noqa: BLE001
+                        logger.debug("on_node_fail callback raised", exc_info=True)
         finally:
             if runner_context is not None:
                 try:

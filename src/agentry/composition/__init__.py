@@ -11,8 +11,11 @@ Typical usage::
         NodeStatus,
         make_composition_record,
     )
+
+    from agentry.composition import CompositionDisplay
 """
 
+from agentry.composition.display import CompositionDisplay
 from agentry.composition.record import (
     CompositionRecord,
     CompositionStatus,
@@ -21,6 +24,7 @@ from agentry.composition.record import (
 )
 
 __all__ = [
+    "CompositionDisplay",
     "CompositionRecord",
     "CompositionStatus",
     "NodeStatus",

@@ -520,6 +520,7 @@ def run(
 
         try:
             from agentry.binders.local import LocalBinder
+            from agentry.composition.display import CompositionDisplay
             from agentry.composition.engine import CompositionEngine
             from agentry.runners.detector import RunnerDetector
 
@@ -561,12 +562,23 @@ def run(
             else:
                 _composition_to_run = _loaded_workflow.composition
 
+            # Build TTY-aware display and wire callbacks into the engine.
+            _is_tty_mode = obj.get("is_tty", False)
+            _display = CompositionDisplay(
+                is_tty=_is_tty_mode,
+                output_format=output_format,
+            )
+
             _engine = CompositionEngine(
                 composition=_composition_to_run,
                 runner_detector=_detector,
                 binder=_binder,
                 run_dir=run_dir,
                 workflow_base_dir=workflow_base_dir,
+                on_node_start=_display.on_node_start,
+                on_node_complete=_display.on_node_complete,
+                on_node_fail=_display.on_node_fail,
+                on_node_skip=_display.on_node_skip,
             )
             _composition_record = asyncio.run(_engine.execute())
 
@@ -575,13 +587,7 @@ def run(
 
                 click.echo(json.dumps(_composition_record.to_dict()))
             else:
-                _status = _composition_record.overall_status.value
-                click.echo(f"Composition status: {_status}")
-                click.echo(
-                    f"Duration: {_composition_record.wall_clock_seconds:.2f}s"
-                )
-                for _nid, _nstatus in _composition_record.node_statuses.items():
-                    click.echo(f"  [{_nstatus.value}] {_nid}")
+                _display.print_summary(_composition_record)
         except ImportError:
             # CompositionEngine not yet implemented — emit a stub response.
             logger.debug("CompositionEngine not available; emitting stub output.")

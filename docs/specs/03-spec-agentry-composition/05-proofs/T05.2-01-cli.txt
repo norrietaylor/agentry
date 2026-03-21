@@ -1,0 +1,14 @@
+Type: cli
+Command: python3 -c "import io; from agentry.composition.display import CompositionDisplay; ..."
+Expected: Non-TTY event lines in [*]/[OK]/[FAIL]/[SKIP] format
+Timestamp: 2026-03-21T00:00:00Z
+
+OUTPUT:
+[*] Running node 'triage'...
+[OK] Node 'triage' completed (2.3s)
+[*] Running node 'decompose'...
+[FAIL] Node 'decompose' failed: LLM timeout after 60s
+[*] Running node 'assign'...
+[SKIP] Node 'assign' skipped (upstream failure)
+
+Status: PASS

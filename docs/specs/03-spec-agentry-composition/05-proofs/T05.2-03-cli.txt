@@ -1,0 +1,10 @@
+Type: cli
+Command: python3 -c "... CompositionDisplay(output_format='json') -- verify no output emitted ..."
+Expected: JSON mode suppresses human-readable per-event and summary output (caller emits full record as JSON)
+Timestamp: 2026-03-21T00:00:00Z
+
+OUTPUT:
+Buffer is empty (JSON mode suppresses output): ''
+PASS
+
+Status: PASS
