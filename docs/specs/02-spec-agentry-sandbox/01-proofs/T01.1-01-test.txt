@@ -1,0 +1,38 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_workflow_models.py -v
+Expected: All SafetyBlock tests pass including new Phase 2 field tests
+Timestamp: 2026-03-20T00:00:00Z
+
+OUTPUT:
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_defaults
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_custom_timeout
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_timeout_zero_rejected
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_unknown_key_rejected
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_default_trust_is_sandboxed
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_elevated_trust
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_invalid_trust_rejected
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_resource_defaults_include_cpu_and_memory
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_resource_custom_cpu_and_memory
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_resource_cpu_zero_rejected
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_filesystem_defaults_empty
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_filesystem_custom_paths
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_filesystem_unknown_key_rejected
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_network_defaults_empty
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_network_custom_allow
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_network_unknown_key_rejected
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_sandbox_default_base
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_sandbox_custom_base
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_sandbox_unknown_key_rejected
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_safety_block_defaults_all_phase2_fields
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_safety_block_full_phase2_config
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_backward_compat_phase1_only_resources
+PASSED tests/unit/test_workflow_models.py::TestSafetyBlock::test_backward_compat_empty_safety_block
+
+78 passed in 0.10s
+
+Status: PASS

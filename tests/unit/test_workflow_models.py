@@ -24,16 +24,20 @@ from agentry.models import (
     CompositionBlock,
     CompositionStep,
     DocumentRefInput,
+    FilesystemConfig,
     GitDiffInput,
     IdentityBlock,
     ModelBlock,
+    NetworkConfig,
     OutputBlock,
     RepositoryRefInput,
     ResourceConfig,
     RetryConfig,
     SafetyBlock,
+    SandboxConfig,
     SideEffect,
     ToolsBlock,
+    TrustLevel,
     WorkflowDefinition,
 )
 from agentry.models.inputs import StringInput
@@ -253,6 +257,110 @@ class TestSafetyBlock:
     def test_unknown_key_rejected(self) -> None:
         with pytest.raises(ValidationError):
             SafetyBlock(extra="bad")  # type: ignore[call-arg]
+
+    # Phase 2 fields -----------------------------------------------------------
+
+    def test_default_trust_is_sandboxed(self) -> None:
+        block = SafetyBlock()
+        assert block.trust == TrustLevel.sandboxed
+
+    def test_elevated_trust(self) -> None:
+        block = SafetyBlock(trust="elevated")
+        assert block.trust == TrustLevel.elevated
+
+    def test_invalid_trust_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            SafetyBlock(trust="root")  # type: ignore[arg-type]
+
+    def test_resource_defaults_include_cpu_and_memory(self) -> None:
+        cfg = ResourceConfig()
+        assert cfg.cpu == 1.0
+        assert cfg.memory == "2GB"
+
+    def test_resource_custom_cpu_and_memory(self) -> None:
+        cfg = ResourceConfig(cpu=0.5, memory="512MB")
+        assert cfg.cpu == 0.5
+        assert cfg.memory == "512MB"
+
+    def test_resource_cpu_zero_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="cpu"):
+            ResourceConfig(cpu=0.0)
+
+    def test_filesystem_defaults_empty(self) -> None:
+        cfg = FilesystemConfig()
+        assert cfg.read == []
+        assert cfg.write == []
+
+    def test_filesystem_custom_paths(self) -> None:
+        cfg = FilesystemConfig(read=["/src/**"], write=["/out/**"])
+        assert "/src/**" in cfg.read
+        assert "/out/**" in cfg.write
+
+    def test_filesystem_unknown_key_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            FilesystemConfig(read=[], extra="bad")  # type: ignore[call-arg]
+
+    def test_network_defaults_empty(self) -> None:
+        cfg = NetworkConfig()
+        assert cfg.allow == []
+
+    def test_network_custom_allow(self) -> None:
+        cfg = NetworkConfig(allow=["api.anthropic.com", "github.com"])
+        assert "api.anthropic.com" in cfg.allow
+
+    def test_network_unknown_key_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            NetworkConfig(allow=[], extra="bad")  # type: ignore[call-arg]
+
+    def test_sandbox_default_base(self) -> None:
+        cfg = SandboxConfig()
+        assert cfg.base == "agentry/sandbox:1.0"
+
+    def test_sandbox_custom_base(self) -> None:
+        cfg = SandboxConfig(base="myorg/sandbox:2.0")
+        assert cfg.base == "myorg/sandbox:2.0"
+
+    def test_sandbox_unknown_key_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            SandboxConfig(base="img", extra="bad")  # type: ignore[call-arg]
+
+    def test_safety_block_defaults_all_phase2_fields(self) -> None:
+        block = SafetyBlock()
+        assert block.trust == TrustLevel.sandboxed
+        assert block.resources.cpu == 1.0
+        assert block.resources.memory == "2GB"
+        assert block.filesystem.read == []
+        assert block.filesystem.write == []
+        assert block.network.allow == []
+        assert block.sandbox.base == "agentry/sandbox:1.0"
+
+    def test_safety_block_full_phase2_config(self) -> None:
+        block = SafetyBlock(
+            trust="elevated",
+            resources=ResourceConfig(timeout=600, cpu=2.0, memory="4GB"),
+            filesystem=FilesystemConfig(read=["/src/**"], write=["/out/**"]),
+            network=NetworkConfig(allow=["api.anthropic.com"]),
+            sandbox=SandboxConfig(base="myorg/sandbox:2.0"),
+        )
+        assert block.trust == TrustLevel.elevated
+        assert block.resources.cpu == 2.0
+        assert block.resources.memory == "4GB"
+        assert "/src/**" in block.filesystem.read
+        assert "api.anthropic.com" in block.network.allow
+        assert block.sandbox.base == "myorg/sandbox:2.0"
+
+    def test_backward_compat_phase1_only_resources(self) -> None:
+        """Phase 1 workflows with only resources.timeout must still parse."""
+        block = SafetyBlock(resources=ResourceConfig(timeout=120))
+        assert block.resources.timeout == 120
+        # Phase 2 defaults remain intact
+        assert block.trust == TrustLevel.sandboxed
+        assert block.filesystem.read == []
+
+    def test_backward_compat_empty_safety_block(self) -> None:
+        """Empty safety block (no fields) must parse with all defaults."""
+        block = SafetyBlock()
+        assert block.resources.timeout == 300
 
 
 # ---------------------------------------------------------------------------

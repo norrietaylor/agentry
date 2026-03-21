@@ -1,0 +1,38 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_network_manager.py -v
+Expected: All 20 tests pass
+Timestamp: 2026-03-20T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 20 items
+
+tests/unit/test_network_manager.py::TestCreateNetwork::test_returns_network_id PASSED [  5%]
+tests/unit/test_network_manager.py::TestCreateNetwork::test_calls_networks_create_with_bridge_driver PASSED [ 10%]
+tests/unit/test_network_manager.py::TestCreateNetwork::test_calls_networks_create_with_internal_true PASSED [ 15%]
+tests/unit/test_network_manager.py::TestCreateNetwork::test_network_name_contains_prefix_and_execution_id PASSED [ 20%]
+tests/unit/test_network_manager.py::TestCreateNetwork::test_custom_prefix_used_in_network_name PASSED [ 25%]
+tests/unit/test_network_manager.py::TestCreateNetwork::test_labels_contain_execution_id PASSED [ 30%]
+tests/unit/test_network_manager.py::TestCreateNetwork::test_labels_contain_managed_marker PASSED [ 35%]
+tests/unit/test_network_manager.py::TestCreateNetwork::test_raises_network_creation_error_on_api_failure PASSED [ 40%]
+tests/unit/test_network_manager.py::TestCreateNetwork::test_network_creation_error_message_contains_network_name PASSED [ 45%]
+tests/unit/test_network_manager.py::TestTeardownNetwork::test_calls_network_remove PASSED [ 50%]
+tests/unit/test_network_manager.py::TestTeardownNetwork::test_fetches_network_by_id PASSED [ 55%]
+tests/unit/test_network_manager.py::TestTeardownNetwork::test_idempotent_on_404_string PASSED [ 60%]
+tests/unit/test_network_manager.py::TestTeardownNetwork::test_idempotent_on_no_such_network PASSED [ 65%]
+tests/unit/test_network_manager.py::TestTeardownNetwork::test_idempotent_on_not_found_string PASSED [ 70%]
+tests/unit/test_network_manager.py::TestTeardownNetwork::test_raises_teardown_error_on_unexpected_failure PASSED [ 75%]
+tests/unit/test_network_manager.py::TestTeardownNetwork::test_raises_teardown_error_when_remove_fails PASSED [ 80%]
+tests/unit/test_network_manager.py::TestTeardownNetwork::test_teardown_error_contains_network_id PASSED [ 85%]
+tests/unit/test_network_manager.py::TestConstructor::test_raises_runtime_error_without_docker_installed PASSED [ 90%]
+tests/unit/test_network_manager.py::TestConstructor::test_accepts_explicit_client PASSED [ 95%]
+tests/unit/test_network_manager.py::TestConstructor::test_default_prefix PASSED [100%]
+
+============================== 20 passed in 0.03s ==============================
+
+Status: PASS
