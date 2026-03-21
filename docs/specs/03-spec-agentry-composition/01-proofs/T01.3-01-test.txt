@@ -1,0 +1,56 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_composition_model.py -v
+Expected: 39 tests pass, 0 failures
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 39 items
+
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_mode_defaults_to_abort PASSED [  2%]
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_max_retries_defaults_to_1 PASSED [  5%]
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_fallback_defaults_to_abort PASSED [  7%]
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_mode_skip PASSED [ 10%]
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_mode_retry PASSED [ 12%]
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_fallback_skip PASSED [ 15%]
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_invalid_mode_rejected PASSED [ 17%]
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_invalid_fallback_rejected PASSED [ 20%]
+tests/unit/test_composition_model.py::TestFailurePolicyDefaults::test_unknown_key_rejected PASSED [ 23%]
+tests/unit/test_composition_model.py::TestCompositionStepNewFields::test_parse_with_id PASSED [ 25%]
+tests/unit/test_composition_model.py::TestCompositionStepNewFields::test_node_id_uses_id_when_set PASSED [ 28%]
+tests/unit/test_composition_model.py::TestCompositionStepNewFields::test_node_id_falls_back_to_name PASSED [ 30%]
+tests/unit/test_composition_model.py::TestCompositionStepNewFields::test_parse_failure_policy_all_three_modes PASSED [ 33%]
+tests/unit/test_composition_model.py::TestCompositionStepNewFields::test_parse_inputs_mapping PASSED [ 35%]
+tests/unit/test_composition_model.py::TestCompositionStepNewFields::test_id_defaults_to_none PASSED [ 38%]
+tests/unit/test_composition_model.py::TestCompositionStepBackwardCompatibility::test_minimal_step_parses PASSED [ 41%]
+tests/unit/test_composition_model.py::TestCompositionStepBackwardCompatibility::test_id_defaults_to_none PASSED [ 43%]
+tests/unit/test_composition_model.py::TestCompositionStepBackwardCompatibility::test_node_id_equals_name_when_no_id PASSED [ 46%]
+tests/unit/test_composition_model.py::TestCompositionStepBackwardCompatibility::test_failure_policy_has_defaults PASSED [ 48%]
+tests/unit/test_composition_model.py::TestCompositionStepBackwardCompatibility::test_inputs_defaults_to_empty_dict PASSED [ 51%]
+tests/unit/test_composition_model.py::TestCompositionBlockNodeIds::test_node_ids_uses_id_when_present PASSED [ 53%]
+tests/unit/test_composition_model.py::TestCompositionBlockNodeIds::test_node_ids_falls_back_to_name PASSED [ 56%]
+tests/unit/test_composition_model.py::TestCompositionBlockNodeIds::test_node_ids_mixed PASSED [ 58%]
+tests/unit/test_composition_model.py::TestCompositionBlockNodeIds::test_node_ids_empty_when_no_steps PASSED [ 61%]
+tests/unit/test_composition_model.py::TestDagValidationValid::test_linear_chain_a_b_c PASSED [ 64%]
+tests/unit/test_composition_model.py::TestDagValidationValid::test_fan_out_a_to_b_c_then_d PASSED [ 66%]
+tests/unit/test_composition_model.py::TestDagValidationValid::test_single_node PASSED [ 69%]
+tests/unit/test_composition_model.py::TestDagValidationValid::test_empty_steps PASSED [ 71%]
+tests/unit/test_composition_model.py::TestDagValidationValid::test_empty_composition_block_default PASSED [ 74%]
+tests/unit/test_composition_model.py::TestDagValidationCycles::test_simple_cycle_a_b_a PASSED [ 76%]
+tests/unit/test_composition_model.py::TestDagValidationCycles::test_three_node_cycle_a_b_c_a PASSED [ 79%]
+tests/unit/test_composition_model.py::TestDagValidationCycles::test_self_dependency PASSED [ 82%]
+tests/unit/test_composition_model.py::TestDagValidationUnknownDependency::test_unknown_depends_on_raises PASSED [ 84%]
+tests/unit/test_composition_model.py::TestDagValidationUnknownDependency::test_typo_in_depends_on_raises PASSED [ 87%]
+tests/unit/test_composition_model.py::TestDagValidationInputs::test_valid_input_source_expression PASSED [ 89%]
+tests/unit/test_composition_model.py::TestDagValidationInputs::test_valid_input_source_with_field PASSED [ 92%]
+tests/unit/test_composition_model.py::TestDagValidationInputs::test_input_referencing_unknown_node_raises PASSED [ 94%]
+tests/unit/test_composition_model.py::TestDagValidationInputs::test_input_source_not_in_depends_on_raises PASSED [ 97%]
+tests/unit/test_composition_model.py::TestDagValidationInputs::test_invalid_input_expression_format_raises PASSED [100%]
+
+============================== 39 passed in 0.11s ==============================
+Status: PASS
