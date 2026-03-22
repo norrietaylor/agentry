@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -19,7 +20,7 @@ from agentry.binders.local import _make_repository_read, _make_shell_execute
 
 # Tools supported by the GitHub Actions binder.
 SUPPORTED_TOOLS: frozenset[str] = frozenset(
-    {"repository:read", "shell:execute", "pr:comment", "pr:review"}
+    {"repository:read", "shell:execute", "pr:comment", "pr:review", "pr:create"}
 )
 
 
@@ -286,6 +287,9 @@ class GitHubActionsBinder:
           GitHub REST API (``POST /repos/{owner}/{repo}/issues/{number}/comments``).
         - ``pr:review``: Creates a review on the current pull request via the
           GitHub REST API (``POST /repos/{owner}/{repo}/pulls/{number}/reviews``).
+        - ``pr:create``: Creates a branch, commits files, and opens a pull request
+          via the GitHub REST API.  Enforces safety guardrails: no force-push,
+          no push to protected branches, and no auto-merge.
 
         Args:
             tool_declarations: Tool identifiers declared in the workflow
@@ -310,7 +314,7 @@ class GitHubActionsBinder:
                 def _repository_read_ci(
                     *, path: str, _workspace: str = workspace, _reader: Any = _reader
                 ) -> str:
-                    return _reader(repo_root=_workspace, path=path)
+                    return cast(str, _reader(repo_root=_workspace, path=path))
 
                 _repository_read_ci.__name__ = "repository_read"
                 bindings[tool_name] = _repository_read_ci
@@ -320,6 +324,8 @@ class GitHubActionsBinder:
                 bindings[tool_name] = self._make_pr_comment()
             elif tool_name == "pr:review":
                 bindings[tool_name] = self._make_pr_review()
+            elif tool_name == "pr:create":
+                bindings[tool_name] = self._make_pr_create()
         return bindings
 
     # ------------------------------------------------------------------
@@ -390,7 +396,7 @@ class GitHubActionsBinder:
                     f"{status} error posting PR comment: {body_snippet}. "
                     f"{remediation}"
                 ) from exc
-            return response.json()
+            return cast(dict[str, Any], response.json())
 
         pr_comment.__name__ = "pr_comment"
         return pr_comment
@@ -470,10 +476,193 @@ class GitHubActionsBinder:
                     f"{status} error creating PR review: {body_snippet}. "
                     f"{remediation}"
                 ) from exc
-            return response.json()
+            return cast(dict[str, Any], response.json())
 
         pr_review.__name__ = "pr_review"
         return pr_review
+
+    def _make_pr_create(self) -> Any:
+        """Return a callable that creates a branch and opens a PR via the GitHub API.
+
+        The callable creates a new branch ref, commits files using the Git data API,
+        opens a pull request, and adds the ``agent-proposed`` label.  It enforces
+        safety guardrails: no force-push, no push to protected branches, and no
+        auto-merge.
+
+        The callable signature is::
+
+            def pr_create(
+                *,
+                branch_name: str,
+                commit_message: str,
+                base_branch: str = "main",
+                title: str,
+                body: str,
+                label: str = "agent-proposed",
+                files: list[str] | None = None,
+            ) -> dict[str, Any]: ...
+
+        Returns:
+            A dict with ``branch``, ``pr_url``, and ``status`` keys on success,
+            or ``branch``, ``error``, and ``status`` keys on failure.
+
+        Raises:
+            ValueError: If *branch_name* matches a protected branch name.
+            RuntimeError: On GitHub API errors with HTTP status, body snippet, and
+                remediation hint.
+        """
+        repository = self._repository
+        token = self._token
+        workspace = self._workspace
+
+        # Branch names that must never be pushed to directly.
+        protected_branches = frozenset({"main", "master"})
+
+        def pr_create(
+            *,
+            branch_name: str,
+            commit_message: str,
+            base_branch: str = "main",
+            title: str,
+            body: str,
+            label: str = "agent-proposed",
+            files: list[str] | None = None,
+        ) -> dict[str, Any]:
+            # Guard: never push to a protected branch.
+            if branch_name in protected_branches:
+                raise ValueError(
+                    f"Cannot create a PR from protected branch {branch_name!r}. "
+                    "Use a feature branch name instead."
+                )
+
+            api_base = f"https://api.github.com/repos/{repository}"
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+                "X-GitHub-Api-Version": "2022-11-28",
+            }
+
+            try:
+                # 1. Get the SHA of the base branch.
+                ref_url = f"{api_base}/git/ref/heads/{base_branch}"
+                ref_resp = httpx.get(ref_url, headers=headers)
+                ref_resp.raise_for_status()
+                base_sha: str = ref_resp.json()["object"]["sha"]
+
+                # 2. If files are specified, create blobs and a tree for the commit.
+                tree_sha = base_sha
+                if files is not None:
+                    tree_items: list[dict[str, str]] = []
+                    for file_path in files:
+                        full_path = Path(workspace) / file_path
+                        content = full_path.read_text(encoding="utf-8")
+                        blob_resp = httpx.post(
+                            f"{api_base}/git/blobs",
+                            json={"content": content, "encoding": "utf-8"},
+                            headers=headers,
+                        )
+                        blob_resp.raise_for_status()
+                        blob_sha: str = blob_resp.json()["sha"]
+                        tree_items.append(
+                            {
+                                "path": file_path,
+                                "mode": "100644",
+                                "type": "blob",
+                                "sha": blob_sha,
+                            }
+                        )
+                    tree_resp = httpx.post(
+                        f"{api_base}/git/trees",
+                        json={"base_tree": base_sha, "tree": tree_items},
+                        headers=headers,
+                    )
+                    tree_resp.raise_for_status()
+                    tree_sha = tree_resp.json()["sha"]
+
+                # 3. Create a commit.
+                commit_payload: dict[str, Any] = {
+                    "message": commit_message,
+                    "tree": tree_sha,
+                    "parents": [base_sha],
+                }
+                commit_resp = httpx.post(
+                    f"{api_base}/git/commits",
+                    json=commit_payload,
+                    headers=headers,
+                )
+                commit_resp.raise_for_status()
+                commit_sha: str = commit_resp.json()["sha"]
+
+                # 4. Create the branch ref (never force-push).
+                create_ref_resp = httpx.post(
+                    f"{api_base}/git/refs",
+                    json={"ref": f"refs/heads/{branch_name}", "sha": commit_sha},
+                    headers=headers,
+                )
+                create_ref_resp.raise_for_status()
+
+                # 5. Open a pull request (never auto-merge).
+                pr_resp = httpx.post(
+                    f"{api_base}/pulls",
+                    json={
+                        "title": title,
+                        "body": body,
+                        "head": branch_name,
+                        "base": base_branch,
+                    },
+                    headers=headers,
+                )
+                pr_resp.raise_for_status()
+                pr_data = pr_resp.json()
+                pr_url: str = pr_data.get("html_url", "")
+                pr_number: int = pr_data["number"]
+
+                # 6. Add label.
+                httpx.post(
+                    f"{api_base}/issues/{pr_number}/labels",
+                    json={"labels": [label]},
+                    headers=headers,
+                )
+
+                return {
+                    "branch": branch_name,
+                    "pr_url": pr_url,
+                    "status": "created",
+                }
+
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Network timeout while creating PR via GitHub API. "
+                    "Check your network connection or increase the timeout."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                body_snippet = exc.response.text[:200]
+                if status == 403:
+                    remediation = (
+                        "GITHUB_TOKEN may lack required scopes. "
+                        "Ensure the workflow has `contents: write` and "
+                        "`pull-requests: write` permissions."
+                    )
+                elif status == 404:
+                    remediation = (
+                        f"Resource not found in repository {repository!r}. "
+                        "Verify the repository name and branch names are correct."
+                    )
+                elif status == 422:
+                    remediation = (
+                        "Validation failed. The branch may already exist or "
+                        "the PR title/body may be invalid."
+                    )
+                else:
+                    remediation = "Check GitHub API status and token permissions."
+                raise RuntimeError(
+                    f"{status} error creating PR: {body_snippet}. "
+                    f"{remediation}"
+                ) from exc
+
+        pr_create.__name__ = "pr_create"
+        return pr_create
 
     def map_outputs(
         self,
@@ -593,7 +782,7 @@ class GitHubActionsBinder:
                 f"{status} error posting output PR comment: {body_snippet}. "
                 f"{remediation}"
             ) from exc
-        return response.json()
+        return cast(dict[str, Any], response.json())
 
     def generate_pipeline_config(
         self,
@@ -761,7 +950,7 @@ class GitHubActionsBinder:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _require_env(name: str, message: str, env: dict[str, str]) -> str:
+    def _require_env(name: str, message: str, env: Mapping[str, str]) -> str:
         """Read *name* from *env* or raise :exc:`ValueError` with *message*.
 
         Args:

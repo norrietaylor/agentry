@@ -1,0 +1,49 @@
+Type: file
+Description: Verify pr:create is in SUPPORTED_TOOLS and bind_tools handles it
+Expected: pr:create present in SUPPORTED_TOOLS; _make_pr_create method exists; bind_tools wires it
+Timestamp: 2026-03-22T00:00:00Z
+
+Check 1 - SUPPORTED_TOOLS contains pr:create:
+    {"repository:read", "shell:execute", "pr:comment", "pr:review", "pr:create"}
+        - ``pr:create``: Creates a branch, commits files, and opens a pull request
+            elif tool_name == "pr:create":
+
+Check 2 - _make_pr_create method:
+    def _make_pr_create(self) -> Any:
+
+Check 3 - Safety guardrails (no force-push, protected branches, no auto-merge):
+291:          via the GitHub REST API.  Enforces safety guardrails: no force-push,
+292:          no push to protected branches, and no auto-merge.
+489:        safety guardrails: no force-push, no push to protected branches, and no
+490:        auto-merge.
+518:        # Branch names that must never be pushed to directly.
+519:        protected_branches = frozenset({"main", "master"})
+531:            # Guard: never push to a protected branch.
+532:            if branch_name in protected_branches:
+596:                # 4. Create the branch ref (never force-push).
+604:                # 5. Open a pull request (never auto-merge).
+
+Check 4 - API endpoints used:
+122:          API using ``GET /repos/{owner}/{repo}/pulls/{number}`` with
+202:        url = f"https://api.github.com/repos/{owner_repo}/pulls/{self._pr_number}"
+289:          GitHub REST API (``POST /repos/{owner}/{repo}/pulls/{number}/reviews``).
+440:            url = f"https://api.github.com/repos/{repository}/pulls/{pr_number}/reviews"
+560:                            f"{api_base}/git/blobs",
+575:                        f"{api_base}/git/trees",
+589:                    f"{api_base}/git/commits",
+598:                    f"{api_base}/git/refs",
+606:                    f"{api_base}/pulls",
+622:                    f"{api_base}/issues/{pr_number}/labels",
+
+Check 5 - Error handling (403, 404, 422):
+383:                if status == 403:
+388:                elif status == 404:
+463:                if status == 403:
+468:                elif status == 404:
+641:                if status == 403:
+647:                elif status == 404:
+652:                elif status == 422:
+768:            if status == 403:
+773:            elif status == 404:
+
+Status: PASS
