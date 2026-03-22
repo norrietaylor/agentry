@@ -719,6 +719,8 @@ def run(
     try:
         if _loaded_workflow is None:
             raise ImportError("Workflow not loaded")
+        import datetime
+        import json as _json
         from pathlib import Path
 
         from agentry.agents.registry import AgentRegistry
@@ -828,6 +830,44 @@ def run(
         if _exec_result is not None and _exec_result.error:
             click.echo(f"Error: agent execution failed: {_exec_result.error}", err=True)
             sys.exit(1)
+
+        # 10b. Write execution record to .agentry/runs/TIMESTAMP/.
+        _run_id = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%S")
+        _runs_base = Path(target) / ".agentry" / "runs"
+        try:
+            from agentry.runners.execution_record_writer import ExecutionRecordWriter
+
+            _extra: dict[str, Any] = {}
+            if _exec_result is not None:
+                if _exec_result.output is not None:
+                    _extra["agent_output"] = _exec_result.output
+                if _exec_result.token_usage:
+                    _extra["token_usage"] = _exec_result.token_usage
+
+            _record_writer = ExecutionRecordWriter(runs_dir=_runs_base)
+            _record_path = _record_writer.write(
+                execution_id=_run_id,
+                extra=_extra if _extra else None,
+            )
+            logger.info("Execution record written: %s", _record_path)
+
+            # Write output.json alongside execution-record.json.
+            _output_paths = _active_binder.map_outputs(
+                output_declarations={},
+                target_dir=target,
+                run_id=_run_id,
+            )
+            _output_json_path = Path(_output_paths.get("output", str(_runs_base / _run_id / "output.json")))
+            _output_json_path.parent.mkdir(parents=True, exist_ok=True)
+            _output_payload_record: dict[str, object] = {
+                "execution_id": _run_id,
+                "output": _exec_result.output if _exec_result else None,
+                "token_usage": _exec_result.token_usage if _exec_result else {},
+            }
+            _output_json_path.write_text(_json.dumps(_output_payload_record, indent=2), encoding="utf-8")
+            logger.info("Output record written: %s", _output_json_path)
+        except Exception as _record_exc:  # noqa: BLE001
+            logger.warning("Failed to write execution record: %s", _record_exc)
 
         # 11. Emit output.
         if output_format == OutputFormat.JSON:
