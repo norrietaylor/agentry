@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from agentry.executor import ExecutionRecord
+    from agentry.models.execution import ExecutionRecord
 
 
 class NodeStatus(str, Enum):

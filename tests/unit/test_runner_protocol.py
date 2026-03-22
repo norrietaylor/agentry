@@ -19,7 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agentry.executor import ExecutionRecord
+from agentry.models.execution import ExecutionRecord
 from agentry.models.safety import SafetyBlock
 from agentry.runners.protocol import (
     AgentConfig,

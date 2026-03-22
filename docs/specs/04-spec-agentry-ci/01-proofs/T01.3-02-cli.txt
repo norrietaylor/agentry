@@ -1,8 +1,0 @@
-Type: cli
-Command: python3 -m ruff check tests/unit/test_github_binder_inputs.py
-Expected: All checks passed (no lint errors)
-Timestamp: 2026-03-21T00:00:00Z
-
-All checks passed!
-
-Status: PASS

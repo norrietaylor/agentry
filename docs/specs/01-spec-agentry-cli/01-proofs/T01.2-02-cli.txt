@@ -1,7 +1,0 @@
-Type: cli
-Command: python3 -m ruff check src/agentry/models/
-Expected: All checks passed
-Timestamp: 2026-03-20T00:00:00Z
-Status: PASS
----
-All checks passed!

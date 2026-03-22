@@ -23,7 +23,7 @@ import pytest_asyncio  # noqa: F401 -- required for asyncio_mode
 
 from agentry.composition.engine import CompositionEngine
 from agentry.composition.record import CompositionRecord, CompositionStatus, NodeStatus
-from agentry.executor import ExecutionRecord
+from agentry.models.execution import ExecutionRecord
 from agentry.models.composition import CompositionBlock, CompositionStep, FailurePolicy
 from agentry.runners.protocol import AgentConfig, ExecutionResult, RunnerContext
 

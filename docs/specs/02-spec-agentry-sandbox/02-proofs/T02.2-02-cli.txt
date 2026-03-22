@@ -1,7 +1,0 @@
-All checks passed!
----
-Type: cli
-Command: python3 -m ruff check src/agentry/runners/dns_proxy.py tests/unit/test_dns_proxy.py
-Expected: No lint errors
-Timestamp: 2026-03-21T04:25:37Z
-Status: PASS

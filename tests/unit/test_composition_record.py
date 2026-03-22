@@ -21,7 +21,7 @@ from agentry.composition.record import (
     NodeStatus,
     make_composition_record,
 )
-from agentry.executor import ExecutionRecord
+from agentry.models.execution import ExecutionRecord
 
 
 # ---------------------------------------------------------------------------

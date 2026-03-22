@@ -44,7 +44,7 @@ from agentry.composition.record import (
     CompositionStatus,
     NodeStatus,
 )
-from agentry.executor import ExecutionRecord
+from agentry.models.execution import ExecutionRecord
 from agentry.models.composition import CompositionBlock, CompositionStep
 from agentry.models.workflow import WorkflowDefinition
 from agentry.parser import load_workflow_file
@@ -235,11 +235,17 @@ class CompositionEngine:
             )
 
             # Build agent configuration from the loaded workflow.
+            agent_block = getattr(workflow, "agent", None)
+            agent_name = agent_block.runtime if agent_block else "claude-code"
+            agent_cfg = {}
+            if agent_block:
+                agent_cfg["model"] = agent_block.model
             agent_config = AgentConfig(
                 system_prompt=self._build_system_prompt(workflow),
                 resolved_inputs=_resolved_inputs,
                 tool_names=list(workflow.tools.capabilities),
-                llm_config=self._build_llm_config(workflow),
+                agent_name=agent_name,
+                agent_config=agent_cfg,
             )
 
             # Execute the agent.
@@ -488,24 +494,6 @@ class CompositionEngine:
         identity = workflow.identity
         description: str = identity.description
         return f"You are {identity.name}. {description}"
-
-    def _build_llm_config(self, workflow: WorkflowDefinition) -> Any:
-        """Build an LLM config from the workflow's model block.
-
-        Args:
-            workflow: The parsed ``WorkflowDefinition``.
-
-        Returns:
-            An ``LLMConfig`` instance derived from the workflow's model block.
-        """
-        from agentry.llm.models import LLMConfig
-
-        model_block = workflow.model
-        return LLMConfig(
-            model=model_block.model_id,
-            max_tokens=model_block.max_tokens,
-            temperature=model_block.temperature,
-        )
 
     def _write_node_output(
         self, node_id: str, exec_record: ExecutionRecord | None

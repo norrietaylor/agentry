@@ -19,7 +19,7 @@ Phase 5 (Agent Runtime) is complete. The four-layer architecture is in place: Ag
 - [ ] **Additional agent runtimes** — Open Code, Aider, Ollama-based agents _(Phase 5 Non-Goals)_
 - [ ] **Token budget enforcement** — configurable token budget per agent execution _(Phase 5 Non-Goals, RFC Gap 1)_
 - [ ] **Streaming agent output** — stream agent runtime output to CLI in real-time _(Phase 5 Non-Goals)_
-- [ ] **Remove AgentExecutor and LLM layer** — delete `executor.py` and `llm/` package, they are dead code after Phase 5 _(Phase 5 cleanup)_
+- [x] **Remove AgentExecutor and LLM layer** — deleted `executor.py` and `llm/` package, relocated `ExecutionRecord` to `models/execution.py` _(Phase 5 cleanup)_
 - [ ] **Standard Docker image with Claude Code** — publish `agentry-sandbox` base image _(Phase 5 Open Q)_
 - [ ] **Agent tool invocation records** — capture granular tool-use history from agent runtimes _(Phase 5 Open Q)_
 - [ ] **Claude Code `--allowedTools` integration** — enforce tool manifest at agent level _(Phase 5 Open Q)_
@@ -53,10 +53,10 @@ _Source: Phase 4 spec Non-Goals, Open Questions, PRD Section 4.2_
 - [x] **README.md** — installation, quick start, usage examples
 - [x] **LICENSE file** — Apache 2.0
 - [x] **.gitignore** — added `.env` patterns
-- [ ] **CI/CD config** — `.github/workflows/` for automated lint, type check, tests
-- [ ] **Commit outstanding changes** — uncommitted files from Phase 2/3/4 work
-- [ ] **CONTRIBUTING.md** — code style (ruff/mypy), testing, commit conventions
-- [ ] **CHANGELOG.md** — document Phase 1-4 in v0.1.0
+- [x] **CI/CD config** — `.github/workflows/ci.yml` for lint, type check, tests
+- [x] **Commit outstanding changes** — all committed and pushed
+- [x] **CONTRIBUTING.md** — code style (ruff/mypy), testing, commit conventions
+- [x] **CHANGELOG.md** — documents Phases 1-5 in v0.1.0
 
 _Source: repo readiness assessment_
 
@@ -130,7 +130,7 @@ _Source: repo readiness assessment_
 - [x] **CLI `ci` stub** — replaced with full `ci generate` subcommand group _(Phase 4)_
 - [ ] **CLI `registry` stub** — still prints "Not yet implemented"
 - [ ] **Graceful fallback stubs** — several try/except ImportError blocks in cli.py for components that now exist
-- [ ] **`.env` pattern in .gitignore** — add `*.env` and `.env*` explicitly
+- [x] **`.env` pattern in .gitignore** — `.env`, `.env.*`, `*.env` patterns present; `agentry-prd.md` added
 - [ ] **mypy strict errors** — 9 mypy strict errors in `github_actions.py` (consistent with codebase patterns) _(Phase 4 validation)_
-- [ ] **Delete `executor.py` and `llm/` package** — dead code after Phase 5 agent runtime refactoring
-- [ ] **Remove duplicate RunnerProtocol** — was in `security/envelope.py`, now unified but old tests may reference it
+- [x] **Delete `executor.py` and `llm/` package** — dead code removed in Phase 5 cleanup
+- [x] **Remove duplicate RunnerProtocol** — unified in Phase 5 SecurityEnvelope cleanup

@@ -375,24 +375,23 @@ def test_cli_validate_json_output(tmp_path: pytest.TempPathFactory) -> None:
 
 
 def test_cli_run_json_output_no_executor(tmp_path: pytest.TempPathFactory) -> None:
-    """Without executor, run --output-format json emits valid JSON."""
+    """run --output-format json emits valid JSON stub."""
     wf = tmp_path / "w.yaml"
     wf.write_text("name: test\n")
-    sys.modules.pop("agentry.executor", None)
     runner = CliRunner()
     result = runner.invoke(
         main, ["--output-format", "json", "run", str(wf), "--input", "k=v"]
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
-    assert "workflow" in data or "status" in data
+    assert data["status"] == "not_implemented"
+    assert data["workflow"] == str(wf)
 
 
 def test_cli_run_text_output_no_executor(tmp_path: pytest.TempPathFactory) -> None:
-    """Without executor, run --output-format text emits human-readable output."""
+    """run --output-format text emits human-readable output."""
     wf = tmp_path / "w.yaml"
     wf.write_text("name: test\n")
-    sys.modules.pop("agentry.executor", None)
     runner = CliRunner(mix_stderr=False)
     result = runner.invoke(
         main, ["--output-format", "text", "run", str(wf)]

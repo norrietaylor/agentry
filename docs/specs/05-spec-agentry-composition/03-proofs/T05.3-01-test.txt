@@ -1,9 +1,0 @@
-Type: test (validation)
-Command: agentry validate workflows/task-decompose.yaml
-Expected: {"status": "valid", "path": "workflows/task-decompose.yaml"}
-Timestamp: 2026-03-20T00:00:00Z
-
-Output:
-{"status": "valid", "path": "workflows/task-decompose.yaml"}
-
-Status: PASS

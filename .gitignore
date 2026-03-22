@@ -59,3 +59,12 @@ htmlcov/
 
 # Project specific
 .agentry/
+agentry-prd.md
+
+# Spec proof artifacts & validation reports (auto-generated, contain local paths)
+docs/specs/**/proofs/
+docs/specs/**/*-proofs/
+docs/specs/**/*-validation-*.md
+
+# Test-generated CI workflows
+.github/workflows/agentry-workflow.yaml

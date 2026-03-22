@@ -1,9 +1,0 @@
-Type: cli
-Command: python3 -m pytest tests/unit/ -q --tb=no
-Expected: Full test suite passes without regressions (1247+ tests)
-Timestamp: 2026-03-21T00:00:00Z
-
-Output:
-1247 passed, 1 skipped in 7.99s
-
-Status: PASS

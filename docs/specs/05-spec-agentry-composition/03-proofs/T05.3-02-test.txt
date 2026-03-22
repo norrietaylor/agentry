@@ -1,9 +1,0 @@
-Type: test (validation)
-Command: agentry validate workflows/planning-pipeline.yaml
-Expected: {"status": "valid", "path": "workflows/planning-pipeline.yaml"}
-Timestamp: 2026-03-20T00:00:00Z
-
-Output:
-{"status": "valid", "path": "workflows/planning-pipeline.yaml"}
-
-Status: PASS

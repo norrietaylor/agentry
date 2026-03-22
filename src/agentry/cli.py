@@ -714,42 +714,25 @@ def run(
             sys.exit(1)
         return
 
-    # Attempt to run via the execution engine; fall back to a stub message.
-    try:
-        from agentry.executor import run_workflow
+    # Single-workflow execution via Runner → Agent pipeline.
+    if output_format == OutputFormat.JSON:
+        import json
 
-        result = run_workflow(
-            workflow_path=workflow_path,
-            inputs=parsed_inputs,
-            target=target,
-            output_format=output_format,
-        )
-        if output_format == OutputFormat.JSON:
-            import json
-
-            click.echo(json.dumps(result))
-        else:
-            click.echo(str(result))
-    except ImportError:
-        # Executor not yet implemented — emit a stub response.
-        logger.debug("Executor module not available; emitting stub output.")
-        if output_format == OutputFormat.JSON:
-            import json
-
-            stub2: dict[str, object] = {
-                "status": "not_implemented",
-                "workflow": workflow_path,
-                "inputs": parsed_inputs,
-                "target": target,
-            }
-            click.echo(json.dumps(stub2))
-        else:
-            click.echo(f"Running workflow: {workflow_path}")
-            click.echo(f"Target: {target}")
-            if parsed_inputs:
-                for k, v in parsed_inputs.items():
-                    click.echo(f"  Input {k}={v}")
-            click.echo("(Executor not yet implemented)")
+        stub: dict[str, object] = {
+            "status": "not_implemented",
+            "mode": "single",
+            "workflow": workflow_path,
+            "inputs": parsed_inputs,
+            "target": target,
+        }
+        click.echo(json.dumps(stub))
+    else:
+        click.echo(f"Running workflow: {workflow_path}")
+        click.echo(f"Target: {target}")
+        if parsed_inputs:
+            for k, v in parsed_inputs.items():
+                click.echo(f"  Input {k}={v}")
+        click.echo("(Single-workflow execution not yet wired to Runner/Agent pipeline)")
 
 
 # ---------------------------------------------------------------------------

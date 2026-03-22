@@ -38,7 +38,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-from agentry.executor import ExecutionRecord
+from agentry.models.execution import ExecutionRecord
 from agentry.models.safety import SafetyBlock
 
 # ---------------------------------------------------------------------------

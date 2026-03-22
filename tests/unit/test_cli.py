@@ -282,22 +282,19 @@ def test_run_target_option(tmp_path: "pytest.TempPathFactory") -> None:  # type:
     """--target option must be accepted."""
     wf = tmp_path / "w.yaml"  # type: ignore[operator]
     wf.write_text("name: test\n")  # type: ignore[union-attr]
-    sys.modules.pop("agentry.executor", None)
     runner = CliRunner()
     result = runner.invoke(cli, ["--output-format", "text", "run", str(wf), "--target", str(tmp_path)])
     assert result.exit_code in (0, 1)
 
 
-def test_run_stub_json_output(tmp_path: "pytest.TempPathFactory") -> None:  # type: ignore[name-defined]
-    """Without executor, --output-format json emits valid JSON."""
+def test_run_stub_text_output(tmp_path: "pytest.TempPathFactory") -> None:  # type: ignore[name-defined]
+    """Run command emits stub text output."""
     wf = tmp_path / "w.yaml"  # type: ignore[operator]
     wf.write_text("name: test\n")  # type: ignore[union-attr]
-    sys.modules.pop("agentry.executor", None)
     runner = CliRunner()
-    result = runner.invoke(cli, ["--output-format", "json", "run", str(wf), "--input", "diff=HEAD~1"])
+    result = runner.invoke(cli, ["--output-format", "text", "run", str(wf), "--input", "diff=HEAD~1"])
     assert result.exit_code == 0
-    data = json.loads(result.output)
-    assert "workflow" in data or "status" in data
+    assert "Running workflow" in result.output
 
 
 # --- Entry point ---
