@@ -60,7 +60,7 @@ class CompositionBlock(BaseModel):
         return [step.node_id for step in self.steps]
 
     @model_validator(mode="after")
-    def validate_dag(self) -> "CompositionBlock":
+    def validate_dag(self) -> CompositionBlock:
         """Validate the composition DAG structure.
 
         Checks performed:

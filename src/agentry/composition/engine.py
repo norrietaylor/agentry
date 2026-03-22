@@ -28,7 +28,6 @@ import time
 from collections.abc import Callable
 from graphlib import TopologicalSorter
 from pathlib import Path
-from typing import Any
 
 from agentry.binders.local import LocalBinder
 from agentry.composition import data_passing as _data_passing
@@ -44,8 +43,8 @@ from agentry.composition.record import (
     CompositionStatus,
     NodeStatus,
 )
-from agentry.models.execution import ExecutionRecord
 from agentry.models.composition import CompositionBlock, CompositionStep
+from agentry.models.execution import ExecutionRecord
 from agentry.models.workflow import WorkflowDefinition
 from agentry.parser import load_workflow_file
 from agentry.runners.detector import RunnerDetector

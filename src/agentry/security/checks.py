@@ -497,13 +497,12 @@ class GitHubTokenScopeCheck:
                     }
                     api_scope = _SCOPE_TO_API_SCOPE.get(scope, scope)
                     # Classic token scopes are coarser; map fine-grained names.
-                    if scope == "contents:read":
-                        # "repo" or "public_repo" covers contents read
-                        if "repo" in granted or "public_repo" in granted:
-                            return True, ""
-                    if scope in ("pull-requests:write", "issues:write"):
-                        if "repo" in granted:
-                            return True, ""
+                    if scope == "contents:read" and (
+                        "repo" in granted or "public_repo" in granted
+                    ):
+                        return True, ""
+                    if scope in ("pull-requests:write", "issues:write") and "repo" in granted:
+                        return True, ""
                     if api_scope in granted or scope in granted:
                         return True, ""
                     # Header present but scope not found — fail.

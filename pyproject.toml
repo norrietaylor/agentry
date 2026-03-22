@@ -128,4 +128,5 @@ markers = [
     "unit: unit tests",
     "integration: integration tests",
     "docker: tests requiring a running Docker daemon",
+    "e2e: end-to-end tests verifying public documentation claims",
 ]

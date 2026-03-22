@@ -210,5 +210,5 @@ uv run python -c "from agentry.agents.registry import AgentRegistry; print(list(
 
 ```bash
 uv run pytest tests/ --tb=short -q 2>&1 | tail -3
-# Shows: 1600+ passed
+# Shows: 1500+ passed
 ```
