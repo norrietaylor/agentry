@@ -7,6 +7,7 @@ to local implementations, and maps outputs to the .agentry/runs/ directory.
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -55,6 +56,49 @@ def _assert_git_repo(path: str | Path) -> Path:
             "Ensure --target points to a directory that contains a .git entry.",
         )
     return resolved
+
+
+# Regex patterns for recognising git refs.  Order matters: more specific
+# patterns first so that the check short-circuits early.
+_GIT_REF_PATTERNS: tuple[re.Pattern[str], ...] = (
+    # HEAD with optional ~N / ^N modifiers, e.g. HEAD, HEAD~3, HEAD^2
+    re.compile(r"^HEAD([~^]\d*)?$"),
+    # SHA prefix: 7–40 hex characters (no other characters allowed)
+    re.compile(r"^[0-9a-fA-F]{7,40}$"),
+    # range syntax: ref..ref or ref...ref
+    re.compile(r"^[^\s]+\.{2,3}[^\s]+$"),
+    # named ref with optional remote prefix, e.g. main, origin/main, v1.2.3
+    re.compile(r"^[a-zA-Z0-9_./](?:[a-zA-Z0-9_./-]*[a-zA-Z0-9_./])?$"),
+)
+
+
+def _is_git_ref(value: str) -> bool:
+    """Return True if *value* looks like a git ref rather than raw diff text.
+
+    Recognised patterns:
+    - ``HEAD``, ``HEAD~N``, ``HEAD^N``
+    - SHA prefixes (7–40 hex characters)
+    - Range syntax such as ``main..feature`` or ``v1.0.0...v2.0.0``
+    - Named refs such as ``main``, ``origin/main``, ``feature/my-branch``
+
+    Raw diff text typically starts with ``diff --git`` or ``---``/``+++``
+    markers, or contains newlines, making it easy to distinguish from short
+    single-line ref strings.
+
+    Args:
+        value: The raw input value to inspect.
+
+    Returns:
+        ``True`` if the value matches a known git ref pattern; ``False`` if it
+        is likely raw diff text.
+    """
+    # Multi-line strings are definitely raw diff content, not refs.
+    if "\n" in value:
+        return False
+    stripped = value.strip()
+    if not stripped:
+        return False
+    return any(pattern.fullmatch(stripped) for pattern in _GIT_REF_PATTERNS)
 
 
 class LocalBinder:
@@ -206,33 +250,55 @@ class LocalBinder:
     # Private helpers — implementations filled in by T03.2
     # ------------------------------------------------------------------
 
-    def _resolve_git_diff(self, ref: str, spec: dict[str, Any]) -> str:
-        """Resolve a git-diff input by running ``git diff <ref>``.
+    def _resolve_git_diff(self, value: str, spec: dict[str, Any]) -> str:
+        """Resolve a git-diff input to a diff string.
 
-        Runs ``git diff <ref>`` in the target directory via subprocess and
-        returns the output as a string.
+        Distinguishes between a git ref (e.g. ``"HEAD~1"``, a SHA, or
+        ``"main..feature"``) and raw diff text.
+
+        Behaviour:
+
+        1. If *value* matches a git ref pattern, attempt ``git diff <value>``
+           in the target directory and return its stdout.  If the target is not
+           a git repository, raise :class:`NotAGitRepositoryError`.  If the
+           ``git diff`` command itself fails (e.g. the ref is unknown), fall
+           back to returning *value* as-is.
+        2. If *value* does NOT match a git ref pattern (i.e. it looks like raw
+           diff text), return it as-is without executing any git command.
 
         Args:
-            ref: The git ref from ``--input diff=<ref>`` (e.g. ``"HEAD~1"``).
-            spec: The input declaration spec (may contain ``target`` key).
+            value: Either a git ref (e.g. ``"HEAD~1"``) or raw diff text.
+            spec: The input declaration spec (may contain a ``target`` key
+                pointing to the repository directory).
 
         Returns:
-            The raw output of ``git diff <ref>``.
+            The diff as a string — either the output of ``git diff`` or the
+            raw *value* passed through unchanged.
 
         Raises:
-            NotAGitRepositoryError: If the target is not a git repository.
-            subprocess.CalledProcessError: If git diff returns a non-zero exit code.
+            NotAGitRepositoryError: If *value* looks like a git ref and the
+                target directory is not a git repository.
         """
+        if not _is_git_ref(value):
+            # Raw diff text — return it directly without touching git.
+            return value
+
+        # Value looks like a git ref: resolve the target directory.
         target = spec.get("target", os.getcwd())
         resolved_target = _assert_git_repo(target)
-        result = subprocess.run(
-            ["git", "diff", ref],
-            cwd=str(resolved_target),
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout
+
+        try:
+            result = subprocess.run(
+                ["git", "diff", value],
+                cwd=str(resolved_target),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return result.stdout
+        except subprocess.CalledProcessError:
+            # git diff failed (e.g. unknown ref) — treat value as raw diff.
+            return value
 
     def _resolve_repository_ref(self, ref: str, spec: dict[str, Any]) -> str:
         """Resolve a repository-ref input to the absolute target path.
