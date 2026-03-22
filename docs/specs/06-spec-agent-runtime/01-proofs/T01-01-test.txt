@@ -1,0 +1,46 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_agent_protocol.py -v --collect-only -q
+Expected: All 34 tests collected and passing; ClaudeCodeAgent satisfies AgentProtocol, check_available returns correct status, mock subprocess produces valid AgentResult.
+Timestamp: 2026-03-21T00:00:00Z
+
+--- Test collection ---
+
+tests/unit/test_agent_protocol.py::TestAgentProtocolConformance::test_claude_code_agent_satisfies_protocol PASSED
+tests/unit/test_agent_protocol.py::TestAgentProtocolConformance::test_protocol_check_requires_execute_method PASSED
+tests/unit/test_agent_protocol.py::TestAgentProtocolConformance::test_protocol_check_requires_check_available PASSED
+tests/unit/test_agent_protocol.py::TestAgentProtocolConformance::test_agent_exposes_execute_method PASSED
+tests/unit/test_agent_protocol.py::TestAgentProtocolConformance::test_agent_exposes_check_available_static PASSED
+tests/unit/test_agent_protocol.py::TestAgentTask::test_required_fields PASSED
+tests/unit/test_agent_protocol.py::TestAgentTask::test_optional_fields_default_to_none PASSED
+tests/unit/test_agent_protocol.py::TestAgentTask::test_tool_names_default_empty_list PASSED
+tests/unit/test_agent_protocol.py::TestAgentTask::test_output_schema_accepted PASSED
+tests/unit/test_agent_protocol.py::TestAgentTask::test_timeout_accepted PASSED
+tests/unit/test_agent_protocol.py::TestAgentTask::test_max_iterations_accepted PASSED
+tests/unit/test_agent_protocol.py::TestAgentResult::test_default_values PASSED
+tests/unit/test_agent_protocol.py::TestAgentResult::test_explicit_values PASSED
+tests/unit/test_agent_protocol.py::TestCheckAvailable::test_returns_true_when_claude_on_path PASSED
+tests/unit/test_agent_protocol.py::TestCheckAvailable::test_returns_false_when_claude_missing PASSED
+tests/unit/test_agent_protocol.py::TestClaudeCodeAgentExecute::test_basic_execution_returns_agent_result PASSED
+tests/unit/test_agent_protocol.py::TestClaudeCodeAgentExecute::test_passes_model_flag PASSED
+tests/unit/test_agent_protocol.py::TestClaudeCodeAgentExecute::test_passes_print_flag PASSED
+tests/unit/test_agent_protocol.py::TestClaudeCodeAgentExecute::test_passes_system_prompt_flag PASSED
+tests/unit/test_agent_protocol.py::TestClaudeCodeAgentExecute::test_output_format_json_when_schema_set PASSED
+tests/unit/test_agent_protocol.py::TestClaudeCodeAgentExecute::test_no_output_format_without_schema PASSED
+tests/unit/test_agent_protocol.py::TestClaudeCodeAgentExecute::test_timeout_kills_subprocess PASSED
+tests/unit/test_agent_protocol.py::TestClaudeCodeAgentExecute::test_non_zero_exit_code_sets_error PASSED
+tests/unit/test_agent_protocol.py::TestTokenUsageExtraction::test_token_usage_extracted_from_json_envelope PASSED
+tests/unit/test_agent_protocol.py::TestTokenUsageExtraction::test_token_usage_defaults_to_zero_without_json PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_default_registry_has_claude_code PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_get_factory_returns_callable PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_factory_produces_claude_code_agent PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_get_returns_agent_instance PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_get_with_kwargs_passes_to_factory PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_get_raises_key_error_for_unknown_runtime PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_get_factory_raises_key_error_for_unknown PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_register_custom_factory PASSED
+tests/unit/test_agent_protocol.py::TestAgentRegistry::test_list_runtimes_returns_sorted_names PASSED
+
+--- Summary ---
+34 passed in 0.08s
+
+Status: PASS
