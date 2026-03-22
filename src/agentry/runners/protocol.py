@@ -93,23 +93,30 @@ class AgentConfig:
     """Configuration passed to ``RunnerProtocol.execute()``.
 
     Bundles together everything the runner needs to execute the agent:
-    the system prompt, resolved inputs, tool names, LLM config, retry
-    configuration, and timeout.
+    the system prompt, resolved inputs, tool names, the agent runtime name,
+    runtime-specific configuration, and timeout.
+
+    ``llm_config`` has been replaced by ``agent_name`` and ``agent_config``
+    so that the runner can delegate to any ``AgentProtocol`` implementation
+    without knowing about LLM provider details.
 
     Attributes:
         system_prompt: The system prompt text (already loaded from disk).
         resolved_inputs: Mapping from input name to resolved content string.
         tool_names: Tool identifiers to expose to the agent.
-        llm_config: LLM call configuration (model, temperature, max_tokens).
-        retry_config: Retry configuration for transient LLM failures.
+        agent_name: Identifier of the agent runtime to use (e.g.
+            ``"claude-code"``).  Resolved by ``AgentRegistry`` inside
+            ``RunnerDetector``.
+        agent_config: Runtime-specific configuration dict forwarded to the
+            agent factory as keyword arguments (e.g. ``{"model": "claude-…"}``).
         timeout: Overall execution timeout in seconds. ``None`` means no limit.
     """
 
     system_prompt: str
     resolved_inputs: dict[str, str]
     tool_names: list[str]
-    llm_config: Any  # agentry.llm.models.LLMConfig (avoid circular import)
-    retry_config: Any = None  # agentry.models.model.RetryConfig
+    agent_name: str = "claude-code"
+    agent_config: dict[str, Any] = field(default_factory=dict)
     timeout: float | None = None
 
 
@@ -117,22 +124,33 @@ class AgentConfig:
 class ExecutionResult:
     """Result of a runner execution.
 
-    Wraps the underlying ``ExecutionRecord`` from the agent executor and adds
+    Populated from the ``AgentResult`` returned by the agent runtime, plus
     container-level metadata (exit code, captured stderr/stdout when available,
     and runner-specific context).
 
+    When the runner delegates to an ``AgentProtocol`` instance the following
+    fields are mapped directly from the corresponding ``AgentResult`` fields:
+    ``output``, ``token_usage``, ``tool_invocations``, ``timed_out``, and
+    ``error``.
+
     Attributes:
-        execution_record: The full agent execution record including token usage,
-            tool invocations, and final output.
+        execution_record: The full agent execution record (legacy; may be
+            ``None`` when the runner delegates exclusively to an
+            ``AgentProtocol``).
         exit_code: Container/process exit code. 0 indicates success.
-        stdout: Raw standard output captured from the container, if available.
-        stderr: Raw standard error captured from the container, if available.
+        stdout: Raw standard output captured from the agent, if available.
+        stderr: Raw standard error captured from the agent, if available.
         runner_metadata: Runner-specific metadata from the execution context
             (e.g. container resource usage, network stats).
         timed_out: True when the execution was terminated by the runner's
             hard timeout (SIGKILL for Docker, threading for in-process).
-        error: Error message if the runner itself failed (distinct from an
-            agent execution error in ``execution_record.error``).
+        error: Error message if execution failed.
+        output: Structured output parsed from the agent response (mirrors
+            ``AgentResult.output``).
+        token_usage: Token counts from the agent run (mirrors
+            ``AgentResult.token_usage``).
+        tool_invocations: List of tool invocation records (mirrors
+            ``AgentResult.tool_invocations``).
     """
 
     execution_record: ExecutionRecord | None = None
@@ -142,6 +160,9 @@ class ExecutionResult:
     runner_metadata: dict[str, Any] = field(default_factory=dict)
     timed_out: bool = False
     error: str = ""
+    output: dict[str, Any] | None = None
+    token_usage: dict[str, int] = field(default_factory=dict)
+    tool_invocations: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

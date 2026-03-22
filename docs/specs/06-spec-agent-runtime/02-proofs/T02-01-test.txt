@@ -1,0 +1,26 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_in_process_runner.py -v
+Expected: All tests pass -- InProcessRunner delegates to a mock AgentProtocol, no LLMClient involved.
+Timestamp: 2026-03-21T00:00:00Z
+
+RESULTS
+=======
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_satisfies_runner_protocol PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_init_accepts_agent_not_llm_client PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_no_agent_executor_in_source PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_no_llm_client_in_source PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_execute_calls_agent_execute_with_agent_task PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_execute_result_maps_output PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_execute_result_maps_token_usage PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_execute_result_maps_tool_invocations PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_execute_exit_code_zero_on_success PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_execute_exit_code_one_on_error PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_execute_timed_out_flag PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_provision_no_isolation PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_teardown_is_no_op PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_check_available_always_true PASSED
+tests/unit/test_in_process_runner.py::TestInProcessRunnerAgentDelegation::test_full_lifecycle PASSED
+
+15 passed in 0.30s
+
+Status: PASS

@@ -3,16 +3,19 @@
 Provides a RunnerProtocol backend that executes agents in the current process
 with no isolation. This is used when trust: elevated is specified in the workflow.
 
-Delegates actual agent execution to the AgentExecutor, which handles LLM calls,
-tool invocations, retry logic, and timeout enforcement.
+Delegates actual agent execution to an AgentProtocol instance, which handles
+all communication with the underlying model (subprocess management, API calls,
+etc.).
 
 Usage::
 
     from agentry.runners.in_process import InProcessRunner
+    from agentry.agents.claude_code import ClaudeCodeAgent
     from agentry.models.safety import SafetyBlock
     from agentry.runners import AgentConfig
 
-    runner = InProcessRunner(llm_client=client)
+    agent = ClaudeCodeAgent()
+    runner = InProcessRunner(agent=agent)
     status = runner.check_available()
     assert status.available
 
@@ -24,9 +27,9 @@ Usage::
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from agentry.executor import AgentExecutor
+from agentry.agents.models import AgentTask
+from agentry.agents.protocol import AgentProtocol
 from agentry.models.safety import SafetyBlock
 from agentry.runners.protocol import (
     AgentConfig,
@@ -41,22 +44,22 @@ logger = logging.getLogger(__name__)
 class InProcessRunner:
     """Runner backend for trust: elevated mode (no isolation).
 
-    Executes agents in-process by delegating to AgentExecutor. This runner
-    satisfies RunnerProtocol and can be used as a drop-in replacement for
-    DockerRunner when isolation is not required.
+    Executes agents in-process by delegating to an AgentProtocol instance.
+    This runner satisfies RunnerProtocol and can be used as a drop-in
+    replacement for DockerRunner when isolation is not required.
 
     Attributes:
-        llm_client: The LLM client (e.g. Claude API client) used for agent
-            execution. Passed to AgentExecutor on each execute() call.
+        agent: The AgentProtocol implementation used for agent execution.
     """
 
-    def __init__(self, llm_client: Any) -> None:
+    def __init__(self, agent: AgentProtocol) -> None:
         """Initialize the InProcessRunner.
 
         Args:
-            llm_client: The LLM client for agent execution.
+            agent: An AgentProtocol implementation (e.g. ClaudeCodeAgent)
+                that will handle agent execution.
         """
-        self.llm_client = llm_client
+        self.agent = agent
 
     def provision(
         self,
@@ -96,38 +99,54 @@ class InProcessRunner:
     ) -> ExecutionResult:
         """Execute the agent in the current process.
 
-        Delegates to AgentExecutor, which handles LLM communication, tool
-        invocations, retry logic, and timeout enforcement.
+        Builds an AgentTask from the AgentConfig and delegates to the
+        AgentProtocol instance. Maps the AgentResult fields onto an
+        ExecutionResult.
 
         Args:
             runner_context: The provisioned environment context (unused for
                 in-process execution).
             agent_config: Bundled agent execution parameters (system prompt,
-                inputs, tool names, LLM config, retry config, timeout).
+                inputs, tool names, agent name/config, timeout).
 
         Returns:
-            An ExecutionResult wrapping the execution record from AgentExecutor.
-
-        Raises:
-            RuntimeError: If the LLM client is not available or if agent
-                execution fails.
+            An ExecutionResult populated from the AgentResult returned by
+            the agent runtime.
         """
-        executor = AgentExecutor(llm_client=self.llm_client)
-        record = executor.run(
+        # Build the task description by joining resolved inputs.
+        task_description = "\n\n".join(
+            f"{k}:\n{v}" for k, v in agent_config.resolved_inputs.items()
+        )
+
+        agent_task = AgentTask(
             system_prompt=agent_config.system_prompt,
-            resolved_inputs=agent_config.resolved_inputs,
+            task_description=task_description,
             tool_names=agent_config.tool_names,
-            config=agent_config.llm_config,
-            retry_config=agent_config.retry_config,
             timeout=agent_config.timeout,
         )
+
+        agent_result = self.agent.execute(agent_task)
+
+        exit_code = agent_result.exit_code
+        # Normalise: treat non-zero exit or error as failure.
+        if agent_result.error and exit_code == 0:
+            exit_code = 1
+
+        token_usage_dict: dict[str, int] = {
+            "input_tokens": agent_result.token_usage.input_tokens,
+            "output_tokens": agent_result.token_usage.output_tokens,
+        }
+
         return ExecutionResult(
-            execution_record=record,
-            exit_code=0 if not record.error else 1,
-            stdout=record.final_content,
-            stderr=record.error,
+            exit_code=exit_code,
+            stdout=agent_result.raw_output,
+            stderr=agent_result.error,
             runner_metadata={"runner_type": "in_process"},
-            timed_out=record.timed_out,
+            timed_out=agent_result.timed_out,
+            error=agent_result.error,
+            output=agent_result.output,
+            token_usage=token_usage_dict,
+            tool_invocations=list(agent_result.tool_invocations),
         )
 
     def teardown(self, runner_context: RunnerContext) -> None:

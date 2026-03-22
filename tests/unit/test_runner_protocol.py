@@ -1,13 +1,15 @@
-"""Unit tests for T01.2: RunnerProtocol and data models.
+"""Unit tests for RunnerProtocol data models, InProcessRunner, and RunnerDetector.
 
 Tests cover:
 - RunnerContext dataclass defaults and field assignment.
 - RunnerStatus dataclass defaults and field assignment.
-- AgentConfig dataclass field assignment.
+- AgentConfig dataclass field assignment (agent_name/agent_config, no llm_config).
 - ExecutionResult dataclass defaults and field assignment.
 - RunnerProtocol isinstance checks via @runtime_checkable.
 - Concrete implementation satisfies protocol.
 - Protocol rejects objects missing required methods.
+- T02: InProcessRunner delegates to AgentProtocol, no AgentExecutor dependency.
+- T02: RunnerDetector resolves agent by name and injects into runner.
 """
 
 from __future__ import annotations
@@ -169,26 +171,36 @@ class TestAgentConfig:
             system_prompt="You are a code reviewer.",
             resolved_inputs={"diff": "--- a/file.py\n+++ b/file.py"},
             tool_names=["repository:read"],
-            llm_config=object(),
         )
         assert config.system_prompt == "You are a code reviewer."
         assert config.resolved_inputs == {"diff": "--- a/file.py\n+++ b/file.py"}
         assert config.tool_names == ["repository:read"]
-        assert config.retry_config is None
+        assert config.agent_name == "claude-code"
+        assert config.agent_config == {}
         assert config.timeout is None
 
     def test_optional_fields(self) -> None:
-        """AgentConfig accepts optional retry_config and timeout."""
+        """AgentConfig accepts optional agent_name, agent_config, and timeout."""
         config = AgentConfig(
             system_prompt="test",
             resolved_inputs={},
             tool_names=[],
-            llm_config=None,
-            retry_config="mock-retry",
+            agent_name="custom-agent",
+            agent_config={"model": "claude-opus-4-5"},
             timeout=120.0,
         )
-        assert config.retry_config == "mock-retry"
+        assert config.agent_name == "custom-agent"
+        assert config.agent_config == {"model": "claude-opus-4-5"}
         assert config.timeout == 120.0
+
+    def test_no_llm_config_field(self) -> None:
+        """AgentConfig does not have an llm_config field."""
+        config = AgentConfig(
+            system_prompt="test",
+            resolved_inputs={},
+            tool_names=[],
+        )
+        assert not hasattr(config, "llm_config"), "llm_config should be removed"
 
 
 # ---------------------------------------------------------------------------
@@ -302,15 +314,12 @@ class TestRunnerProtocolUsage:
 
     def test_execute_returns_execution_result(self) -> None:
         """execute() returns an ExecutionResult with a populated record."""
-        from agentry.llm.models import LLMConfig
-
         runner = _MinimalRunner()
         ctx = RunnerContext(container_id="ctr-001")
         config = AgentConfig(
             system_prompt="test",
             resolved_inputs={},
             tool_names=[],
-            llm_config=LLMConfig(model="claude-sonnet-4-5", max_tokens=4096),
         )
         result = runner.execute(runner_context=ctx, agent_config=config)
 
@@ -337,8 +346,6 @@ class TestRunnerProtocolUsage:
 
     def test_full_lifecycle(self) -> None:
         """Full provision -> execute -> teardown lifecycle succeeds."""
-        from agentry.llm.models import LLMConfig
-
         runner = _MinimalRunner()
         safety = SafetyBlock()
 
@@ -355,7 +362,6 @@ class TestRunnerProtocolUsage:
             system_prompt="You are a reviewer.",
             resolved_inputs={},
             tool_names=["repository:read"],
-            llm_config=LLMConfig(model="claude-sonnet-4-5", max_tokens=4096),
             timeout=300.0,
         )
         result = runner.execute(runner_context=ctx, agent_config=agent_config)
@@ -414,20 +420,84 @@ class TestPublicAPI:
 
 
 class TestInProcessRunner:
-    """Tests for T01.3: InProcessRunner implementation."""
+    """Tests for T02: InProcessRunner delegates to AgentProtocol."""
+
+    def _make_mock_agent(
+        self,
+        raw_output: str = "execution result",
+        exit_code: int = 0,
+        timed_out: bool = False,
+        error: str = "",
+        output: dict | None = None,
+        input_tokens: int = 10,
+        output_tokens: int = 5,
+        tool_invocations: list | None = None,
+    ) -> MagicMock:
+        """Build a mock AgentProtocol that returns a configured AgentResult."""
+        from agentry.agents.models import AgentResult, TokenUsage
+
+        mock_agent = MagicMock()
+        mock_agent.execute.return_value = AgentResult(
+            raw_output=raw_output,
+            exit_code=exit_code,
+            timed_out=timed_out,
+            error=error,
+            output=output,
+            token_usage=TokenUsage(
+                input_tokens=input_tokens, output_tokens=output_tokens
+            ),
+            tool_invocations=tool_invocations or [],
+        )
+        return mock_agent
 
     def test_in_process_runner_satisfies_protocol(self) -> None:
         """InProcessRunner satisfies the RunnerProtocol."""
         from agentry.runners.in_process import InProcessRunner
 
-        runner = InProcessRunner(llm_client=object())
+        mock_agent = self._make_mock_agent()
+        runner = InProcessRunner(agent=mock_agent)
         assert isinstance(runner, RunnerProtocol)
+
+    def test_init_accepts_agent_protocol(self) -> None:
+        """InProcessRunner.__init__ accepts an agent parameter, not llm_client."""
+        from agentry.runners.in_process import InProcessRunner
+
+        mock_agent = self._make_mock_agent()
+        runner = InProcessRunner(agent=mock_agent)
+        assert runner.agent is mock_agent
+
+    def test_init_does_not_require_llm_client(self) -> None:
+        """InProcessRunner can be constructed without llm_client."""
+        from agentry.runners.in_process import InProcessRunner
+
+        mock_agent = self._make_mock_agent()
+        # This should not raise a TypeError about llm_client.
+        runner = InProcessRunner(agent=mock_agent)
+        assert runner is not None
+
+    def test_no_agent_executor_import(self) -> None:
+        """InProcessRunner module does not import AgentExecutor."""
+        import inspect
+
+        from agentry.runners import in_process
+
+        source = inspect.getsource(in_process)
+        assert "AgentExecutor" not in source, "AgentExecutor should not be used"
+
+    def test_no_llm_client_reference(self) -> None:
+        """InProcessRunner module does not reference LLMClient."""
+        import inspect
+
+        from agentry.runners import in_process
+
+        source = inspect.getsource(in_process)
+        assert "llm_client" not in source, "llm_client should be removed"
 
     def test_provision_returns_context_with_no_isolation(self) -> None:
         """provision() returns RunnerContext with no container/network IDs."""
         from agentry.runners.in_process import InProcessRunner
 
-        runner = InProcessRunner(llm_client=object())
+        runner = InProcessRunner(agent=self._make_mock_agent())
         safety = SafetyBlock()
         ctx = runner.provision(safety_block=safety, resolved_inputs={})
 
@@ -441,7 +511,7 @@ class TestInProcessRunner:
         """provision() logs a warning about elevated trust mode."""
         from agentry.runners.in_process import InProcessRunner
 
-        runner = InProcessRunner(llm_client=object())
+        runner = InProcessRunner(agent=self._make_mock_agent())
         safety = SafetyBlock()
 
         with caplog.at_level(logging.WARNING):
@@ -453,136 +523,118 @@ class TestInProcessRunner:
             for record in caplog.records
         )
 
-    def test_execute_delegates_to_agent_executor(self) -> None:
-        """execute() delegates to AgentExecutor and wraps result."""
-        from unittest.mock import MagicMock
-
+    def test_execute_delegates_to_agent_protocol(self) -> None:
+        """execute() delegates to agent.execute() with an AgentTask."""
+        from agentry.agents.models import AgentTask
         from agentry.runners.in_process import InProcessRunner
 
-        # Mock the AgentExecutor
-        mock_executor = MagicMock()
-        mock_record = ExecutionRecord(
-            final_content="execution result",
-            model_used="claude-test",
-            total_llm_calls=1,
-            stop_reason="end_turn",
+        mock_agent = self._make_mock_agent(raw_output="execution result")
+        runner = InProcessRunner(agent=mock_agent)
+
+        ctx = RunnerContext()
+        config = AgentConfig(
+            system_prompt="test",
+            resolved_inputs={"input1": "value1"},
+            tool_names=["read"],
+        )
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        # Verify agent.execute was called with an AgentTask.
+        mock_agent.execute.assert_called_once()
+        call_args = mock_agent.execute.call_args
+        task_arg = call_args[0][0] if call_args[0] else call_args[1].get("agent_task")
+        assert isinstance(task_arg, AgentTask)
+        assert task_arg.system_prompt == "test"
+        assert task_arg.tool_names == ["read"]
+
+    def test_execute_populates_result_from_agent_result(self) -> None:
+        """execute() maps AgentResult fields onto ExecutionResult."""
+        from agentry.runners.in_process import InProcessRunner
+
+        mock_agent = self._make_mock_agent(
+            raw_output="execution result",
+            exit_code=0,
             timed_out=False,
             error="",
+            output={"key": "value"},
+            input_tokens=100,
+            output_tokens=50,
+            tool_invocations=[{"tool": "read", "result": "ok"}],
         )
-        mock_executor.run.return_value = mock_record
-
-        # Create a runner with a mock that won't be used
-        # (we'll patch AgentExecutor)
-        runner = InProcessRunner(llm_client=MagicMock())
+        runner = InProcessRunner(agent=mock_agent)
 
         ctx = RunnerContext()
         config = AgentConfig(
             system_prompt="test",
             resolved_inputs={},
             tool_names=[],
-            llm_config=object(),
         )
 
-        # Patch AgentExecutor inside the execute method
-        from unittest.mock import patch
+        result = runner.execute(runner_context=ctx, agent_config=config)
 
-        with patch(
-            "agentry.runners.in_process.AgentExecutor"
-        ) as mock_executor_class:
-            mock_executor_instance = MagicMock()
-            mock_executor_class.return_value = mock_executor_instance
-            mock_executor_instance.run.return_value = mock_record
-
-            result = runner.execute(runner_context=ctx, agent_config=config)
-
-            # Verify the result was wrapped correctly
-            assert isinstance(result, ExecutionResult)
-            assert result.execution_record is mock_record
-            assert result.exit_code == 0
-            assert result.stdout == "execution result"
-            assert result.stderr == ""
-            assert result.timed_out is False
-            assert result.runner_metadata["runner_type"] == "in_process"
+        assert isinstance(result, ExecutionResult)
+        assert result.exit_code == 0
+        assert result.stdout == "execution result"
+        assert result.stderr == ""
+        assert result.timed_out is False
+        assert result.runner_metadata["runner_type"] == "in_process"
+        assert result.output == {"key": "value"}
+        assert result.token_usage["input_tokens"] == 100
+        assert result.token_usage["output_tokens"] == 50
+        assert result.tool_invocations == [{"tool": "read", "result": "ok"}]
 
     def test_execute_sets_error_exit_code_on_failure(self) -> None:
         """execute() sets exit_code=1 when execution has an error."""
-        from unittest.mock import patch
-
         from agentry.runners.in_process import InProcessRunner
 
-        runner = InProcessRunner(llm_client=MagicMock())
+        mock_agent = self._make_mock_agent(
+            raw_output="",
+            exit_code=0,
+            error="Agent failed",
+        )
+        runner = InProcessRunner(agent=mock_agent)
         ctx = RunnerContext()
         config = AgentConfig(
             system_prompt="test",
             resolved_inputs={},
             tool_names=[],
-            llm_config=object(),
         )
 
-        # Create a record with an error
-        mock_record = ExecutionRecord(
-            final_content="",
-            model_used="claude-test",
-            total_llm_calls=1,
-            stop_reason="end_turn",
-            timed_out=False,
-            error="LLM call failed",
-        )
+        result = runner.execute(runner_context=ctx, agent_config=config)
 
-        with patch(
-            "agentry.runners.in_process.AgentExecutor"
-        ) as mock_executor_class:
-            mock_executor_instance = MagicMock()
-            mock_executor_class.return_value = mock_executor_instance
-            mock_executor_instance.run.return_value = mock_record
-
-            result = runner.execute(runner_context=ctx, agent_config=config)
-
-            assert result.exit_code == 1
-            assert result.stderr == "LLM call failed"
+        assert result.exit_code == 1
+        assert result.stderr == "Agent failed"
+        assert result.error == "Agent failed"
 
     def test_execute_handles_timeout(self) -> None:
-        """execute() correctly reflects timeout from ExecutionRecord."""
-        from unittest.mock import patch
-
+        """execute() correctly reflects timeout from AgentResult."""
         from agentry.runners.in_process import InProcessRunner
 
-        runner = InProcessRunner(llm_client=MagicMock())
-        ctx = RunnerContext()
-        config = AgentConfig(
-            system_prompt="test",
-            resolved_inputs={},
-            tool_names=[],
-            llm_config=object(),
-        )
-
-        # Create a record with timeout
-        mock_record = ExecutionRecord(
-            final_content="",
-            model_used="claude-test",
-            total_llm_calls=0,
-            stop_reason="",
+        mock_agent = self._make_mock_agent(
+            raw_output="",
+            exit_code=1,
             timed_out=True,
             error="Timeout after 300 seconds",
         )
+        runner = InProcessRunner(agent=mock_agent)
+        ctx = RunnerContext()
+        config = AgentConfig(
+            system_prompt="test",
+            resolved_inputs={},
+            tool_names=[],
+        )
 
-        with patch(
-            "agentry.runners.in_process.AgentExecutor"
-        ) as mock_executor_class:
-            mock_executor_instance = MagicMock()
-            mock_executor_class.return_value = mock_executor_instance
-            mock_executor_instance.run.return_value = mock_record
+        result = runner.execute(runner_context=ctx, agent_config=config)
 
-            result = runner.execute(runner_context=ctx, agent_config=config)
-
-            assert result.timed_out is True
-            assert result.exit_code == 1
+        assert result.timed_out is True
+        assert result.exit_code == 1
 
     def test_teardown_is_no_op(self) -> None:
         """teardown() is a no-op and never raises."""
         from agentry.runners.in_process import InProcessRunner
 
-        runner = InProcessRunner(llm_client=object())
+        runner = InProcessRunner(agent=self._make_mock_agent())
         ctx = RunnerContext()
         # Should not raise
         runner.teardown(ctx)
@@ -593,7 +645,7 @@ class TestInProcessRunner:
         """check_available() always returns available=True."""
         from agentry.runners.in_process import InProcessRunner
 
-        runner = InProcessRunner(llm_client=object())
+        runner = InProcessRunner(agent=self._make_mock_agent())
         status = runner.check_available()
 
         assert isinstance(status, RunnerStatus)
@@ -602,12 +654,10 @@ class TestInProcessRunner:
 
     def test_full_in_process_lifecycle(self) -> None:
         """Full lifecycle: check_available -> provision -> execute -> teardown."""
-        from unittest.mock import MagicMock, patch
-
-        from agentry.llm.models import LLMConfig
         from agentry.runners.in_process import InProcessRunner
 
-        runner = InProcessRunner(llm_client=MagicMock())
+        mock_agent = self._make_mock_agent(raw_output="done")
+        runner = InProcessRunner(agent=mock_agent)
         safety = SafetyBlock()
 
         # 1. Check availability
@@ -619,34 +669,17 @@ class TestInProcessRunner:
         assert ctx.container_id == ""
         assert ctx.metadata["runner_type"] == "in_process"
 
-        # 3. Execute with mocked AgentExecutor
-        mock_record = ExecutionRecord(
-            final_content="done",
-            model_used="claude-test",
-            total_llm_calls=1,
-            stop_reason="end_turn",
-        )
-
+        # 3. Execute
         config = AgentConfig(
             system_prompt="You are a reviewer.",
             resolved_inputs={},
             tool_names=["repository:read"],
-            llm_config=LLMConfig(
-                model="claude-sonnet-4-5", max_tokens=4096
-            ),
             timeout=300.0,
         )
 
-        with patch(
-            "agentry.runners.in_process.AgentExecutor"
-        ) as mock_executor_class:
-            mock_executor_instance = MagicMock()
-            mock_executor_class.return_value = mock_executor_instance
-            mock_executor_instance.run.return_value = mock_record
-
-            result = runner.execute(runner_context=ctx, agent_config=config)
-            assert result.exit_code == 0
-            assert result.execution_record is mock_record
+        result = runner.execute(runner_context=ctx, agent_config=config)
+        assert result.exit_code == 0
+        assert result.stdout == "done"
 
         # 4. Teardown (should not raise)
         runner.teardown(ctx)
@@ -658,41 +691,92 @@ class TestInProcessRunner:
 
 
 class TestRunnerDetector:
-    """Tests for T01.6: RunnerDetector implementation."""
+    """Tests for T02: RunnerDetector resolves agent by name and injects into runner."""
+
+    def _make_registry(self) -> "AgentRegistry":
+        """Return a default AgentRegistry for testing."""
+        from agentry.agents.registry import AgentRegistry
+
+        return AgentRegistry.default()
 
     def test_get_runner_elevated_trust_returns_in_process_runner(self) -> None:
         """get_runner() returns InProcessRunner when trust: elevated."""
         from agentry.runners.detector import RunnerDetector
+        from agentry.runners.in_process import InProcessRunner
 
-        detector = RunnerDetector(llm_client=object())
+        detector = RunnerDetector(agent_registry=self._make_registry())
         safety = SafetyBlock(trust="elevated")
 
         runner = detector.get_runner(safety)
 
+        assert isinstance(runner, InProcessRunner)
+
+    def test_get_runner_elevated_injects_agent(self) -> None:
+        """get_runner() resolves agent from registry and injects into InProcessRunner."""
+        from unittest.mock import MagicMock
+
+        from agentry.agents.registry import AgentRegistry
+        from agentry.runners.detector import RunnerDetector
         from agentry.runners.in_process import InProcessRunner
 
+        mock_agent = MagicMock()
+        mock_registry = MagicMock(spec=AgentRegistry)
+        mock_registry.get.return_value = mock_agent
+
+        detector = RunnerDetector(
+            agent_registry=mock_registry,
+            agent_name="claude-code",
+        )
+        safety = SafetyBlock(trust="elevated")
+
+        runner = detector.get_runner(safety)
+
         assert isinstance(runner, InProcessRunner)
+        assert runner.agent is mock_agent
+        mock_registry.get.assert_called_once_with("claude-code")
+
+    def test_get_runner_elevated_forwards_agent_kwargs(self) -> None:
+        """get_runner() forwards agent_kwargs to the registry factory."""
+        from unittest.mock import MagicMock
+
+        from agentry.agents.registry import AgentRegistry
+        from agentry.runners.detector import RunnerDetector
+
+        mock_agent = MagicMock()
+        mock_registry = MagicMock(spec=AgentRegistry)
+        mock_registry.get.return_value = mock_agent
+
+        detector = RunnerDetector(
+            agent_registry=mock_registry,
+            agent_name="claude-code",
+            agent_kwargs={"model": "claude-opus-4-5"},
+        )
+        safety = SafetyBlock(trust="elevated")
+
+        detector.get_runner(safety)
+
+        mock_registry.get.assert_called_once_with(
+            "claude-code", model="claude-opus-4-5"
+        )
 
     def test_get_runner_sandboxed_docker_available_returns_docker_runner(
         self,
     ) -> None:
         """get_runner() returns DockerRunner when trust: sandboxed and Docker available."""
-        from unittest.mock import MagicMock
-
         from agentry.runners.detector import RunnerDetector
+        from agentry.runners.docker_runner import DockerRunner
 
         # Mock Docker client
         mock_docker_client = MagicMock()
         mock_docker_client.ping.return_value = True
 
         detector = RunnerDetector(
-            llm_client=object(), docker_client=mock_docker_client
+            agent_registry=self._make_registry(),
+            docker_client=mock_docker_client,
         )
         safety = SafetyBlock(trust="sandboxed")
 
         runner = detector.get_runner(safety)
-
-        from agentry.runners.docker_runner import DockerRunner
 
         assert isinstance(runner, DockerRunner)
 
@@ -700,8 +784,6 @@ class TestRunnerDetector:
         self,
     ) -> None:
         """get_runner() raises error when trust: sandboxed but Docker unavailable."""
-        from unittest.mock import MagicMock
-
         from agentry.runners.detector import RunnerDetector
 
         # Mock Docker client that is unavailable
@@ -709,7 +791,8 @@ class TestRunnerDetector:
         mock_docker_client.ping.side_effect = Exception("Docker daemon not available")
 
         detector = RunnerDetector(
-            llm_client=object(), docker_client=mock_docker_client
+            agent_registry=self._make_registry(),
+            docker_client=mock_docker_client,
         )
         safety = SafetyBlock(trust="sandboxed")
 
@@ -722,15 +805,14 @@ class TestRunnerDetector:
 
     def test_get_runner_error_message_helpful(self) -> None:
         """Error message from get_runner() provides helpful guidance."""
-        from unittest.mock import MagicMock
-
         from agentry.runners.detector import RunnerDetector
 
         mock_docker_client = MagicMock()
         mock_docker_client.ping.side_effect = Exception("Cannot connect to Docker")
 
         detector = RunnerDetector(
-            llm_client=object(), docker_client=mock_docker_client
+            agent_registry=self._make_registry(),
+            docker_client=mock_docker_client,
         )
         safety = SafetyBlock(trust="sandboxed")
 
@@ -743,8 +825,6 @@ class TestRunnerDetector:
 
     def test_get_runner_default_trust_is_sandboxed(self) -> None:
         """Default trust level is sandboxed, requiring Docker."""
-        from unittest.mock import MagicMock
-
         from agentry.runners.detector import RunnerDetector
 
         # Create SafetyBlock with no explicit trust (defaults to sandboxed)
@@ -756,7 +836,8 @@ class TestRunnerDetector:
         mock_docker_client.ping.side_effect = Exception("Docker unavailable")
 
         detector = RunnerDetector(
-            llm_client=object(), docker_client=mock_docker_client
+            agent_registry=self._make_registry(),
+            docker_client=mock_docker_client,
         )
 
         with pytest.raises(RuntimeError):
@@ -764,8 +845,6 @@ class TestRunnerDetector:
 
     def test_get_runner_with_docker_available_succeeds(self) -> None:
         """get_runner() succeeds with default sandboxed trust when Docker available."""
-        from unittest.mock import MagicMock
-
         from agentry.runners.detector import RunnerDetector
         from agentry.runners.docker_runner import DockerRunner
 
@@ -774,7 +853,8 @@ class TestRunnerDetector:
         mock_docker_client.ping.return_value = True
 
         detector = RunnerDetector(
-            llm_client=object(), docker_client=mock_docker_client
+            agent_registry=self._make_registry(),
+            docker_client=mock_docker_client,
         )
         safety = SafetyBlock()  # Default: trust: sandboxed
 
@@ -784,8 +864,6 @@ class TestRunnerDetector:
 
     def test_elevated_trust_does_not_check_docker(self) -> None:
         """get_runner() with elevated trust never calls docker.ping()."""
-        from unittest.mock import MagicMock
-
         from agentry.runners.detector import RunnerDetector
         from agentry.runners.in_process import InProcessRunner
 
@@ -796,7 +874,8 @@ class TestRunnerDetector:
         )
 
         detector = RunnerDetector(
-            llm_client=object(), docker_client=mock_docker_client
+            agent_registry=self._make_registry(),
+            docker_client=mock_docker_client,
         )
         safety = SafetyBlock(trust="elevated")
 
@@ -808,15 +887,14 @@ class TestRunnerDetector:
 
     def test_get_runner_returned_runner_satisfies_protocol(self) -> None:
         """Runners returned by get_runner() satisfy RunnerProtocol."""
-        from unittest.mock import MagicMock
-
         from agentry.runners.detector import RunnerDetector
 
         mock_docker_client = MagicMock()
         mock_docker_client.ping.return_value = True
 
         detector = RunnerDetector(
-            llm_client=object(), docker_client=mock_docker_client
+            agent_registry=self._make_registry(),
+            docker_client=mock_docker_client,
         )
 
         # Test with elevated trust
@@ -828,3 +906,20 @@ class TestRunnerDetector:
         safety_sandboxed = SafetyBlock(trust="sandboxed")
         runner_sandboxed = detector.get_runner(safety_sandboxed)
         assert isinstance(runner_sandboxed, RunnerProtocol)
+
+    def test_get_runner_resolves_claude_code_agent(self) -> None:
+        """get_runner() with elevated trust resolves ClaudeCodeAgent from default registry."""
+        from agentry.agents.claude_code import ClaudeCodeAgent
+        from agentry.runners.detector import RunnerDetector
+        from agentry.runners.in_process import InProcessRunner
+
+        registry = self._make_registry()
+        detector = RunnerDetector(
+            agent_registry=registry, agent_name="claude-code"
+        )
+        safety = SafetyBlock(trust="elevated")
+
+        runner = detector.get_runner(safety)
+
+        assert isinstance(runner, InProcessRunner)
+        assert isinstance(runner.agent, ClaudeCodeAgent)

@@ -5,12 +5,17 @@ environment availability. For trust: elevated, always returns InProcessRunner.
 For trust: sandboxed, checks Docker availability and returns DockerRunner if
 available, or raises an error if Docker is unavailable.
 
+The agent runtime is resolved by name from an ``AgentRegistry`` and injected
+into ``InProcessRunner`` at selection time.
+
 Usage::
 
     from agentry.runners.detector import RunnerDetector
+    from agentry.agents.registry import AgentRegistry
     from agentry.models.safety import SafetyBlock
 
-    detector = RunnerDetector(llm_client=client, docker_client=None)
+    registry = AgentRegistry.default()
+    detector = RunnerDetector(agent_registry=registry, agent_name="claude-code")
     safety = SafetyBlock()
     runner = detector.get_runner(safety)
 """
@@ -19,6 +24,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agentry.agents.registry import AgentRegistry
 from agentry.models.safety import SafetyBlock, TrustLevel
 from agentry.runners.docker_runner import DockerRunner
 from agentry.runners.in_process import InProcessRunner
@@ -32,33 +38,51 @@ class RunnerDetector:
     (trust: elevated) and DockerRunner (trust: sandboxed). For sandboxed
     mode, verifies Docker availability before selection.
 
+    The agent runtime is resolved from ``agent_registry`` using ``agent_name``
+    and injected into ``InProcessRunner`` so runners no longer depend on a
+    raw ``llm_client``.
+
     Attributes:
-        llm_client: The LLM client for agent execution. Passed to
-            InProcessRunner.
+        agent_registry: Registry used to resolve agent runtimes by name.
+        agent_name: The identifier of the agent runtime to use (e.g.
+            ``"claude-code"``).  Must be registered in ``agent_registry``.
+        agent_kwargs: Keyword arguments forwarded to the agent factory when
+            constructing the agent instance.
         docker_client: Optional pre-configured Docker client (for testing).
             If None, DockerRunner creates its own.
     """
 
     def __init__(
-        self, llm_client: Any, docker_client: Any = None
+        self,
+        agent_registry: AgentRegistry,
+        agent_name: str = "claude-code",
+        agent_kwargs: dict[str, Any] | None = None,
+        docker_client: Any = None,
     ) -> None:
         """Initialize the RunnerDetector.
 
         Args:
-            llm_client: The LLM client for agent execution.
+            agent_registry: Registry mapping runtime names to agent factories.
+            agent_name: The agent runtime identifier to resolve (e.g.
+                ``"claude-code"``).
+            agent_kwargs: Optional keyword arguments forwarded to the agent
+                factory (e.g. ``{"model": "claude-opus-4-5"}``).
             docker_client: Optional Docker client instance (for testing).
                 If None, DockerRunner will use the system Docker daemon.
         """
-        self.llm_client = llm_client
+        self.agent_registry = agent_registry
+        self.agent_name = agent_name
+        self.agent_kwargs: dict[str, Any] = agent_kwargs or {}
         self.docker_client = docker_client
 
     def get_runner(self, safety_block: SafetyBlock) -> RunnerProtocol:
         """Select and return the appropriate runner for the safety block.
 
         Selection logic:
-        - If ``trust: elevated``, returns InProcessRunner (no isolation).
+        - If ``trust: elevated``, resolves the agent from the registry and
+          returns ``InProcessRunner`` (no isolation).
         - If ``trust: sandboxed``, checks Docker availability and returns
-          DockerRunner if available. Raises RuntimeError if Docker is
+          ``DockerRunner`` if available. Raises ``RuntimeError`` if Docker is
           unavailable with a diagnostic message.
 
         Args:
@@ -72,10 +96,13 @@ class RunnerDetector:
             RuntimeError: If ``trust: sandboxed`` but Docker is unavailable.
                 The error message provides guidance on how to resolve this
                 (install Docker or set ``trust: elevated``).
+            KeyError: If ``agent_name`` is not registered in
+                ``agent_registry``.
         """
         if safety_block.trust == TrustLevel.elevated:
-            # Elevated trust mode: use in-process execution with no isolation.
-            return InProcessRunner(llm_client=self.llm_client)
+            # Elevated trust mode: resolve the agent and run in-process.
+            agent = self.agent_registry.get(self.agent_name, **self.agent_kwargs)
+            return InProcessRunner(agent=agent)
 
         # Sandboxed mode: check Docker availability.
         docker_runner = DockerRunner(docker_client=self.docker_client)
