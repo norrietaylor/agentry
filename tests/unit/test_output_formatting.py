@@ -394,7 +394,7 @@ def test_cli_run_text_output_no_executor(tmp_path: pytest.TempPathFactory) -> No
     wf.write_text("name: test\n")
     runner = CliRunner()
     result = runner.invoke(
-        main, ["--output-format", "text", "run", str(wf)]
+        main, ["--output-format", "text", "run", str(wf), "--skip-preflight"]
     )
     assert result.exit_code == 0
     assert "Running workflow" in result.output or str(wf) in result.output

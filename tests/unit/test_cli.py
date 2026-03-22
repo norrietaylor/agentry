@@ -73,7 +73,7 @@ def test_run_command_valid_yaml() -> None:
     with runner.isolated_filesystem():
         with open("test.yaml", "w") as f:
             f.write("version: 1\nname: test\n")
-        result = runner.invoke(main, ["--output-format", "text", "run", "test.yaml"])
+        result = runner.invoke(main, ["--output-format", "text", "run", "test.yaml", "--skip-preflight"])
         assert result.exit_code == 0
         assert "Running workflow" in result.output
 
@@ -292,7 +292,7 @@ def test_run_stub_text_output(tmp_path: "pytest.TempPathFactory") -> None:  # ty
     wf = tmp_path / "w.yaml"  # type: ignore[operator]
     wf.write_text("name: test\n")  # type: ignore[union-attr]
     runner = CliRunner()
-    result = runner.invoke(cli, ["--output-format", "text", "run", str(wf), "--input", "diff=HEAD~1"])
+    result = runner.invoke(cli, ["--output-format", "text", "run", str(wf), "--input", "diff=HEAD~1", "--skip-preflight"])
     assert result.exit_code == 0
     assert "Running workflow" in result.output
 
