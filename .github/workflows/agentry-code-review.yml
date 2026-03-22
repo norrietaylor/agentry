@@ -38,11 +38,10 @@ jobs:
 
       - name: Run agentry
         run: >
-          agentry run workflows/code-review.yaml
+          agentry --output-format json run workflows/code-review.yaml
           --input diff=${{ github.event.pull_request.head.sha }}~1
           --input codebase=.
           --binder github-actions
-          --output-format json
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
