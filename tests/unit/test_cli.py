@@ -13,10 +13,16 @@ import json
 import sys
 import types
 
-import pytest  # noqa: F401
+import pytest
 from click.testing import CliRunner
 
 from agentry.cli import cli, main
+
+
+@pytest.fixture(autouse=True)
+def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent GITHUB_ACTIONS env var from triggering github-actions binder."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
 
 def test_cli_help() -> None:

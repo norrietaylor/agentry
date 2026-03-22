@@ -31,6 +31,13 @@ from agentry.output import (
     emit,
 )
 
+
+@pytest.fixture(autouse=True)
+def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent GITHUB_ACTIONS env var from triggering github-actions binder."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
