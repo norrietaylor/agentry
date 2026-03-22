@@ -1,4 +1,4 @@
-"""Unit tests for T03.1: SecurityEnvelope wrapping AgentExecutor.
+"""Unit tests for T04: SecurityEnvelope delegates to runner, no executor.
 
 Tests cover:
 - strip_tools() filters available tools to manifest-only set.
@@ -13,6 +13,8 @@ Tests cover:
 - EnvelopeResult captures stripped and allowed tool lists.
 - ToolManifestViolationError contains excess and manifest tool sets.
 - PreflightError contains check name, message, and remediation.
+- SecurityEnvelope delegates agent execution to runner.execute(), not an executor.
+- RunnerProtocol imported from runners.protocol (no duplicate definition).
 """
 
 from __future__ import annotations
@@ -23,24 +25,27 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agentry.executor import AgentExecutor, ExecutionRecord, ToolInvocation
-from agentry.llm.models import LLMConfig
 from agentry.models.identity import IdentityBlock
 from agentry.models.output import OutputBlock, SideEffect
+from agentry.models.safety import SafetyBlock
 from agentry.models.tools import ToolsBlock
 from agentry.models.workflow import WorkflowDefinition
+from agentry.runners.protocol import (
+    AgentConfig,
+    ExecutionResult,
+    RunnerContext,
+    RunnerProtocol,
+    RunnerStatus,
+)
 from agentry.security.envelope import (
     EnvelopeResult,
     PreflightCheckResult,
     PreflightError,
-    RunnerProtocol,
     SecurityEnvelope,
     SecurityEnvelopeError,
     ToolManifestViolationError,
     strip_tools,
 )
-
-_DEFAULT_CONFIG = LLMConfig(model="claude-sonnet-4-5", max_tokens=4096)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -70,38 +75,60 @@ def _make_workflow(
 
 
 class MockRunner:
-    """Mock runner satisfying RunnerProtocol."""
+    """Mock runner satisfying the canonical RunnerProtocol."""
 
     def __init__(
         self,
         provision_result: dict[str, Any] | None = None,
         provision_error: Exception | None = None,
         teardown_error: Exception | None = None,
+        execution_output: dict[str, Any] | None = None,
+        execution_error: str = "",
+        execution_side_effect: Exception | None = None,
     ) -> None:
         self.provision_result = provision_result or {"container_id": "abc123"}
         self.provision_error = provision_error
         self.teardown_error = teardown_error
+        self.execution_output = execution_output
+        self.execution_error = execution_error
+        self.execution_side_effect = execution_side_effect
         self.provisioned = False
         self.torn_down = False
+        self.last_runner_context: RunnerContext | None = None
+        self.last_agent_config: AgentConfig | None = None
 
-    def provision(self) -> dict[str, Any]:
+    def provision(
+        self,
+        safety_block: Any,
+        resolved_inputs: dict[str, str],
+    ) -> RunnerContext:
         if self.provision_error:
             raise self.provision_error
         self.provisioned = True
-        return self.provision_result
+        return RunnerContext(metadata=self.provision_result)
 
-    def teardown(self) -> None:
+    def execute(
+        self,
+        runner_context: RunnerContext,
+        agent_config: AgentConfig,
+    ) -> ExecutionResult:
+        self.last_runner_context = runner_context
+        self.last_agent_config = agent_config
+        if self.execution_side_effect:
+            raise self.execution_side_effect
+        return ExecutionResult(
+            output=self.execution_output,
+            error=self.execution_error,
+            tool_invocations=[],
+        )
+
+    def teardown(self, runner_context: RunnerContext) -> None:
         self.torn_down = True
         if self.teardown_error:
             raise self.teardown_error
 
-    def execute(
-        self, command: str, timeout: float | None = None
-    ) -> dict[str, Any]:
-        return {"exit_code": 0, "stdout": "", "stderr": ""}
-
-    def check_available(self) -> bool:
-        return True
+    def check_available(self) -> RunnerStatus:
+        return RunnerStatus(available=True)
 
 
 @dataclass
@@ -124,30 +151,6 @@ class MockPreflightCheck:
             message=self._message,
             remediation=self._remediation,
         )
-
-
-def _make_executor(
-    final_content: str = "ok",
-    final_output: dict[str, Any] | None = None,
-    error: str = "",
-    tool_invocations: list[ToolInvocation] | None = None,
-) -> AgentExecutor:
-    """Build an AgentExecutor with a mocked LLM client."""
-    record = ExecutionRecord(
-        final_content=final_content,
-        final_output=final_output,
-        error=error,
-        tool_invocations=tool_invocations or [],
-        model_used="claude-sonnet-4-5",
-        input_tokens=10,
-        output_tokens=20,
-        total_llm_calls=1,
-        stop_reason="end_turn",
-    )
-
-    executor = MagicMock(spec=AgentExecutor)
-    executor.run.return_value = record
-    return executor
 
 
 # ---------------------------------------------------------------------------
@@ -213,40 +216,31 @@ class TestSecurityEnvelopeToolStripping:
     """Tests for tool manifest enforcement in SecurityEnvelope."""
 
     def test_strips_undeclared_tools(self) -> None:
-        """Undeclared tools are stripped and not passed to executor."""
+        """Undeclared tools are stripped and not passed to runner."""
         workflow = _make_workflow(tool_capabilities=["read_file", "write_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
-        )
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file", "write_file", "shell_exec"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert result.tools_allowed == ["read_file", "write_file"]
         assert result.tools_stripped == ["shell_exec"]
-        # Verify executor was called with only allowed tools.
-        executor.run.assert_called_once()
-        call_kwargs = executor.run.call_args
-        assert call_kwargs.kwargs.get("tool_names") or call_kwargs[1].get("tool_names")
-        tool_names = call_kwargs.kwargs.get("tool_names") or call_kwargs[1].get("tool_names")
-        assert tool_names == ["read_file", "write_file"]
+        # Verify runner was called with only allowed tools.
+        assert runner.last_agent_config is not None
+        assert runner.last_agent_config.tool_names == ["read_file", "write_file"]
 
     def test_abort_on_strip_raises(self) -> None:
         """When abort_on_strip=True, exceeding the manifest raises."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
         envelope = SecurityEnvelope(
             workflow=workflow,
             runner=runner,
-            executor=executor,
             abort_on_strip=True,
         )
 
@@ -255,22 +249,19 @@ class TestSecurityEnvelopeToolStripping:
                 system_prompt="test",
                 resolved_inputs={},
                 available_tools=["read_file", "shell_exec"],
-                config=_DEFAULT_CONFIG,
             )
 
         assert exc_info.value.excess_tools == {"shell_exec"}
         assert exc_info.value.manifest_tools == {"read_file"}
 
     def test_abort_on_strip_sets_aborted(self) -> None:
-        """When abort_on_strip aborts, executor.run is never called."""
+        """When abort_on_strip aborts, runner.execute is never called."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
         envelope = SecurityEnvelope(
             workflow=workflow,
             runner=runner,
-            executor=executor,
             abort_on_strip=True,
         )
 
@@ -279,29 +270,25 @@ class TestSecurityEnvelopeToolStripping:
                 system_prompt="test",
                 resolved_inputs={},
                 available_tools=["read_file", "dangerous_tool"],
-                config=_DEFAULT_CONFIG,
             )
 
-        # Executor should NOT have been called.
-        executor.run.assert_not_called()
+        # Runner execute should NOT have been called.
+        assert runner.last_agent_config is None
 
     def test_no_strip_when_tools_match(self) -> None:
         """No stripping or error when tools exactly match manifest."""
         workflow = _make_workflow(tool_capabilities=["read_file", "write_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
         envelope = SecurityEnvelope(
             workflow=workflow,
             runner=runner,
-            executor=executor,
             abort_on_strip=True,
         )
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file", "write_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert result.tools_stripped == []
@@ -315,7 +302,6 @@ class TestSecurityEnvelopePreflightChecks:
         """A failing preflight check prevents agent execution."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
         failing_check = MockPreflightCheck(
             _name="docker_check",
@@ -327,7 +313,6 @@ class TestSecurityEnvelopePreflightChecks:
         envelope = SecurityEnvelope(
             workflow=workflow,
             runner=runner,
-            executor=executor,
             preflight_checks=[failing_check],
         )
 
@@ -336,20 +321,18 @@ class TestSecurityEnvelopePreflightChecks:
                 system_prompt="test",
                 resolved_inputs={},
                 available_tools=["read_file"],
-                config=_DEFAULT_CONFIG,
             )
 
         assert exc_info.value.check_name == "docker_check"
         assert "Docker is not available" in exc_info.value.message
         assert exc_info.value.remediation == "Install Docker."
-        # Executor should NOT have been called.
-        executor.run.assert_not_called()
+        # Runner execute should NOT have been called.
+        assert runner.last_agent_config is None
 
     def test_passing_preflights_allow_execution(self) -> None:
         """All passing preflight checks allow execution to proceed."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
         checks = [
             MockPreflightCheck(_name="api_key_check", _passed=True),
@@ -359,26 +342,23 @@ class TestSecurityEnvelopePreflightChecks:
         envelope = SecurityEnvelope(
             workflow=workflow,
             runner=runner,
-            executor=executor,
             preflight_checks=checks,
         )
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert len(result.preflight_results) == 2
         assert all(r.passed for r in result.preflight_results)
         assert not result.aborted
-        executor.run.assert_called_once()
+        assert runner.last_agent_config is not None
 
     def test_first_failing_preflight_stops_remaining(self) -> None:
         """Once a preflight fails, subsequent checks are not run."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
         check1 = MockPreflightCheck(_name="check1", _passed=True)
         check2 = MockPreflightCheck(
@@ -389,7 +369,6 @@ class TestSecurityEnvelopePreflightChecks:
         envelope = SecurityEnvelope(
             workflow=workflow,
             runner=runner,
-            executor=executor,
             preflight_checks=[check1, check2, check3],
         )
 
@@ -398,13 +377,10 @@ class TestSecurityEnvelopePreflightChecks:
                 system_prompt="test",
                 resolved_inputs={},
                 available_tools=["read_file"],
-                config=_DEFAULT_CONFIG,
             )
 
-        # Only 2 results: check1 passed, check2 failed, check3 never ran.
-        # (We can't access result directly since exception was raised,
-        # but we verify executor was not called.)
-        executor.run.assert_not_called()
+        # Runner execute should NOT have been called.
+        assert runner.last_agent_config is None
 
 
 class TestSecurityEnvelopeRunnerLifecycle:
@@ -414,16 +390,12 @@ class TestSecurityEnvelopeRunnerLifecycle:
         """Runner.provision() is called before agent execution."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner(provision_result={"container_id": "xyz"})
-        executor = _make_executor()
 
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
-        )
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert runner.provisioned
@@ -433,16 +405,12 @@ class TestSecurityEnvelopeRunnerLifecycle:
         """Runner.teardown() is called after successful execution."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
-        )
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert runner.torn_down
@@ -451,7 +419,6 @@ class TestSecurityEnvelopeRunnerLifecycle:
         """Runner.teardown() is called even when preflight fails."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner()
-        executor = _make_executor()
 
         failing_check = MockPreflightCheck(
             _name="fail", _passed=False, _message="Bad."
@@ -460,7 +427,6 @@ class TestSecurityEnvelopeRunnerLifecycle:
         envelope = SecurityEnvelope(
             workflow=workflow,
             runner=runner,
-            executor=executor,
             preflight_checks=[failing_check],
         )
 
@@ -469,57 +435,70 @@ class TestSecurityEnvelopeRunnerLifecycle:
                 system_prompt="test",
                 resolved_inputs={},
                 available_tools=["read_file"],
-                config=_DEFAULT_CONFIG,
             )
 
         assert runner.torn_down
 
-    def test_runner_teardown_on_executor_error(self) -> None:
-        """Runner.teardown() is called even when executor raises."""
+    def test_runner_teardown_on_execution_error(self) -> None:
+        """Runner.teardown() is called even when runner.execute raises."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
-        runner = MockRunner()
-        executor = MagicMock(spec=AgentExecutor)
-        executor.run.side_effect = RuntimeError("LLM exploded")
-
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
+        runner = MockRunner(
+            execution_side_effect=RuntimeError("Runner exploded")
         )
+
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert runner.torn_down
-        assert "LLM exploded" in result.envelope_error
+        assert "Runner exploded" in result.envelope_error
 
     def test_teardown_error_logged_not_raised(self) -> None:
         """Teardown errors are captured but do not override other results."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
         runner = MockRunner(teardown_error=RuntimeError("Teardown boom"))
-        executor = _make_executor()
 
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
-        )
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert runner.torn_down
         # Teardown error captured.
         assert "Teardown boom" in result.envelope_error
 
+    def test_runner_execute_called_with_agent_config(self) -> None:
+        """SecurityEnvelope delegates execution to runner.execute with correct args."""
+        workflow = _make_workflow(tool_capabilities=["read_file"])
+        runner = MockRunner()
+
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
+        envelope.execute(
+            system_prompt="You are helpful.",
+            resolved_inputs={"key": "value"},
+            available_tools=["read_file"],
+            agent_name="claude-code",
+            agent_config={"model": "claude-sonnet-4-5"},
+        )
+
+        assert runner.last_agent_config is not None
+        assert runner.last_agent_config.system_prompt == "You are helpful."
+        assert runner.last_agent_config.resolved_inputs == {"key": "value"}
+        assert runner.last_agent_config.tool_names == ["read_file"]
+        assert runner.last_agent_config.agent_name == "claude-code"
+        assert runner.last_agent_config.agent_config == {"model": "claude-sonnet-4-5"}
+
 
 class TestSecurityEnvelopeValidation:
     """Tests for output validation pipeline integration."""
 
     def test_validation_runs_on_structured_output(self) -> None:
-        """When agent returns structured JSON, validation pipeline runs."""
+        """When runner returns structured JSON output, validation pipeline runs."""
         workflow = _make_workflow(
             tool_capabilities=["read_file"],
             schema_def={
@@ -528,59 +507,45 @@ class TestSecurityEnvelopeValidation:
                 "required": ["result"],
             },
         )
-        runner = MockRunner()
-        executor = _make_executor(
-            final_output={"result": "All good"},
-        )
+        runner = MockRunner(execution_output={"result": "All good"})
 
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
-        )
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert result.validation_result is not None
         assert result.validation_result.validation_status == "passed"
 
     def test_no_validation_without_structured_output(self) -> None:
-        """When agent returns plain text (no JSON), validation is skipped."""
+        """When runner returns no output, validation is skipped."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
-        runner = MockRunner()
-        executor = _make_executor(final_output=None)
+        runner = MockRunner(execution_output=None)
 
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
-        )
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert result.validation_result is None
 
     def test_no_validation_when_execution_errors(self) -> None:
-        """When executor reports an error, validation is skipped."""
+        """When runner reports an error, validation is skipped."""
         workflow = _make_workflow(tool_capabilities=["read_file"])
-        runner = MockRunner()
-        executor = _make_executor(
-            final_output={"result": "data"},
-            error="Timeout exceeded",
+        runner = MockRunner(
+            execution_output={"result": "data"},
+            execution_error="Timeout exceeded",
         )
 
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
-        )
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert result.validation_result is None
@@ -595,19 +560,13 @@ class TestSecurityEnvelopeValidation:
                 "required": ["count"],
             },
         )
-        runner = MockRunner()
-        executor = _make_executor(
-            final_output={"count": "not-an-integer"},
-        )
+        runner = MockRunner(execution_output={"count": "not-an-integer"})
 
-        envelope = SecurityEnvelope(
-            workflow=workflow, runner=runner, executor=executor
-        )
+        envelope = SecurityEnvelope(workflow=workflow, runner=runner)
         result = envelope.execute(
             system_prompt="test",
             resolved_inputs={},
             available_tools=["read_file"],
-            config=_DEFAULT_CONFIG,
         )
 
         assert result.validation_result is not None
@@ -662,7 +621,7 @@ class TestEnvelopeResult:
     def test_default_values(self) -> None:
         """Default EnvelopeResult has sensible defaults."""
         result = EnvelopeResult()
-        assert result.execution_record is None
+        assert result.execution_result is None
         assert result.validation_result is None
         assert result.tools_stripped == []
         assert result.tools_allowed == []
@@ -672,10 +631,24 @@ class TestEnvelopeResult:
         assert result.aborted is False
 
 
-class TestRunnerProtocol:
-    """Tests for RunnerProtocol compliance."""
+class TestRunnerProtocolImport:
+    """Tests that RunnerProtocol is imported from runners.protocol (not duplicated)."""
+
+    def test_runner_protocol_from_runners_module(self) -> None:
+        """RunnerProtocol should be importable from runners.protocol."""
+        from agentry.runners.protocol import RunnerProtocol as CanonicalProtocol
+
+        runner = MockRunner()
+        assert isinstance(runner, CanonicalProtocol)
 
     def test_mock_runner_satisfies_protocol(self) -> None:
-        """MockRunner is recognized as satisfying RunnerProtocol."""
+        """MockRunner satisfies the canonical RunnerProtocol."""
         runner = MockRunner()
         assert isinstance(runner, RunnerProtocol)
+
+    def test_no_executor_parameter_in_envelope(self) -> None:
+        """SecurityEnvelope.__init__ no longer accepts executor parameter."""
+        import inspect
+
+        sig = inspect.signature(SecurityEnvelope.__init__)
+        assert "executor" not in sig.parameters

@@ -1,24 +1,24 @@
-"""Security envelope wrapping AgentExecutor.
+"""Security envelope delegating to runners for agent execution.
 
-Provides the SecurityEnvelope class that wraps an AgentExecutor to enforce
+Provides the SecurityEnvelope class that wraps a RunnerProtocol to enforce
 security controls during workflow execution. The envelope manages the full
 lifecycle: tool manifest enforcement, runner provisioning, preflight checks,
-agent execution, output validation, and runner teardown.
+agent execution (via runner), output validation, and runner teardown.
 
 Usage::
 
-    from agentry.security.envelope import SecurityEnvelope, RunnerProtocol
+    from agentry.security.envelope import SecurityEnvelope
 
     envelope = SecurityEnvelope(
         workflow=workflow_definition,
         runner=runner_instance,
-        executor=agent_executor,
     )
     result = envelope.execute(
         system_prompt="You are a code reviewer.",
         resolved_inputs={"diff": "..."},
         available_tools=["read_file", "write_file", "shell_exec"],
-        config=llm_config,
+        agent_name="claude-code",
+        agent_config={"model": "claude-sonnet-4-5"},
     )
 """
 
@@ -28,10 +28,14 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
-from agentry.executor import AgentExecutor, ExecutionRecord
-from agentry.llm.models import LLMConfig
-from agentry.models.model import RetryConfig
 from agentry.models.workflow import WorkflowDefinition
+from agentry.runners.protocol import (
+    AgentConfig,
+    ExecutionResult,
+    RunnerContext,
+    RunnerProtocol,
+    RunnerStatus,
+)
 from agentry.validation.pipeline import run_pipeline
 from agentry.validation.result import ValidationResult
 
@@ -99,50 +103,6 @@ class PreflightError(SecurityEnvelopeError):
 
 
 @runtime_checkable
-class RunnerProtocol(Protocol):
-    """Protocol for execution environment runners.
-
-    Runners manage the lifecycle of an execution environment (e.g. a Docker
-    container or an in-process sandbox). The SecurityEnvelope calls these
-    methods in order: ``provision()`` -> execute agent -> ``teardown()``.
-    """
-
-    def provision(self) -> dict[str, Any]:
-        """Provision the execution environment.
-
-        Returns:
-            A dict of environment metadata (container ID, network config, etc.).
-        """
-        ...
-
-    def teardown(self) -> None:
-        """Tear down the execution environment and release resources."""
-        ...
-
-    def execute(
-        self, command: str, timeout: float | None = None
-    ) -> dict[str, Any]:
-        """Execute a command in the runner environment.
-
-        Args:
-            command: The command to execute.
-            timeout: Optional timeout in seconds.
-
-        Returns:
-            A dict with ``exit_code``, ``stdout``, and ``stderr`` keys.
-        """
-        ...
-
-    def check_available(self) -> bool:
-        """Check whether the runner backend is available.
-
-        Returns:
-            True if the runner can be used, False otherwise.
-        """
-        ...
-
-
-@runtime_checkable
 class PreflightCheck(Protocol):
     """Protocol for preflight checks.
 
@@ -191,18 +151,19 @@ class EnvelopeResult:
     """Result of a secured agent execution through the SecurityEnvelope.
 
     Attributes:
-        execution_record: The underlying AgentExecutor execution record.
+        execution_result: The runner's ExecutionResult, or None if execution
+            failed before agent run.
         validation_result: Output of the three-layer validation pipeline,
             or None if execution failed before validation.
         tools_stripped: Tools that were removed from the available set.
-        tools_allowed: Tools that were passed through to the executor.
+        tools_allowed: Tools that were passed through to the runner.
         preflight_results: Results of all preflight checks.
         runner_metadata: Metadata from runner provisioning.
         envelope_error: Error message if the envelope itself failed.
         aborted: True if execution was aborted due to preflight or other failure.
     """
 
-    execution_record: ExecutionRecord | None = None
+    execution_result: ExecutionResult | None = None
     validation_result: ValidationResult | None = None
     tools_stripped: list[str] = field(default_factory=list)
     tools_allowed: list[str] = field(default_factory=list)
@@ -246,21 +207,20 @@ def strip_tools(
 
 
 class SecurityEnvelope:
-    """Wraps AgentExecutor with security controls.
+    """Wraps a RunnerProtocol with security controls.
 
     The envelope manages the full execution lifecycle:
 
     1. **Tool stripping** -- removes tools not in the workflow manifest.
     2. **Runner provisioning** -- sets up the execution environment.
     3. **Preflight checks** -- validates environment readiness.
-    4. **Agent execution** -- runs the agent with only allowed tools.
+    4. **Agent execution** -- delegates to runner.execute(runner_context, agent_config).
     5. **Output validation** -- passes output through the three-layer pipeline.
     6. **Runner teardown** -- cleans up the execution environment (always runs).
 
     Args:
         workflow: The parsed workflow definition.
-        runner: An object satisfying :class:`RunnerProtocol`.
-        executor: The :class:`~agentry.executor.AgentExecutor` to wrap.
+        runner: An object satisfying :class:`~agentry.runners.protocol.RunnerProtocol`.
         preflight_checks: Optional list of preflight checks to run before
             execution. Each must satisfy :class:`PreflightCheck`.
         abort_on_strip: If True (default), abort execution when tools are
@@ -271,13 +231,11 @@ class SecurityEnvelope:
         self,
         workflow: WorkflowDefinition,
         runner: RunnerProtocol,
-        executor: AgentExecutor,
         preflight_checks: list[PreflightCheck] | None = None,
         abort_on_strip: bool = False,
     ) -> None:
         self._workflow = workflow
         self._runner = runner
-        self._executor = executor
         self._preflight_checks = preflight_checks or []
         self._abort_on_strip = abort_on_strip
 
@@ -296,22 +254,22 @@ class SecurityEnvelope:
         system_prompt: str,
         resolved_inputs: dict[str, str],
         available_tools: list[str],
-        config: LLMConfig,
-        retry_config: RetryConfig | None = None,
+        agent_name: str = "claude-code",
+        agent_config: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> EnvelopeResult:
         """Execute the agent within the security envelope.
 
         This is the main entry point. It enforces the full lifecycle:
-        tool stripping, provisioning, preflight, execution, validation,
-        and teardown.
+        tool stripping, provisioning, preflight, execution (via runner),
+        validation, and teardown.
 
         Args:
             system_prompt: The system prompt text.
             resolved_inputs: Mapping from input name to resolved content.
             available_tools: All tools available in the runtime environment.
-            config: LLM call configuration.
-            retry_config: Retry configuration for the executor.
+            agent_name: Identifier of the agent runtime to use.
+            agent_config: Runtime-specific configuration forwarded to the agent.
             timeout: Overall execution timeout in seconds.
 
         Returns:
@@ -323,7 +281,7 @@ class SecurityEnvelope:
             PreflightError: When a preflight check fails.
         """
         result = EnvelopeResult()
-        provisioned = False
+        runner_context: RunnerContext | None = None
 
         try:
             # Phase 1: Tool manifest enforcement.
@@ -344,9 +302,11 @@ class SecurityEnvelope:
                     )
 
             # Phase 2: Runner provisioning.
-            runner_meta = self._runner.provision()
-            provisioned = True
-            result.runner_metadata = runner_meta
+            runner_context = self._runner.provision(
+                self._workflow.safety,
+                resolved_inputs,
+            )
+            result.runner_metadata = runner_context.metadata
 
             # Phase 3: Preflight checks.
             for check in self._preflight_checks:
@@ -360,20 +320,21 @@ class SecurityEnvelope:
                         remediation=check_result.remediation,
                     )
 
-            # Phase 4: Agent execution (with only allowed tools).
-            record = self._executor.run(
+            # Phase 4: Agent execution via runner (with only allowed tools).
+            run_agent_config = AgentConfig(
                 system_prompt=system_prompt,
                 resolved_inputs=resolved_inputs,
                 tool_names=allowed,
-                config=config,
-                retry_config=retry_config,
+                agent_name=agent_name,
+                agent_config=agent_config or {},
                 timeout=timeout,
             )
-            result.execution_record = record
+            execution_result = self._runner.execute(runner_context, run_agent_config)
+            result.execution_result = execution_result
 
             # Phase 5: Output validation pipeline.
-            if record.final_output is not None and not record.error:
-                validation = self._run_validation(record)
+            if execution_result.output is not None and not execution_result.error:
+                validation = self._run_validation(execution_result)
                 result.validation_result = validation
 
         except ToolManifestViolationError:
@@ -391,9 +352,9 @@ class SecurityEnvelope:
             result.envelope_error = f"Unexpected error: {exc}"
         finally:
             # Phase 6: Runner teardown (always runs if provisioned).
-            if provisioned:
+            if runner_context is not None:
                 try:
-                    self._runner.teardown()
+                    self._runner.teardown(runner_context)
                 except Exception as teardown_exc:
                     logger.error("Runner teardown failed: %s", teardown_exc)
                     if not result.envelope_error:
@@ -403,26 +364,28 @@ class SecurityEnvelope:
 
         return result
 
-    def _run_validation(self, record: ExecutionRecord) -> ValidationResult:
+    def _run_validation(self, execution_result: ExecutionResult) -> ValidationResult:
         """Run the three-layer validation pipeline on agent output.
 
         Args:
-            record: The completed execution record.
+            execution_result: The completed runner execution result.
 
         Returns:
             A :class:`~agentry.validation.result.ValidationResult`.
         """
         # Build tool invocations in the format expected by the pipeline.
         tool_invocations = [
-            {"tool": inv.tool_name, "input": inv.tool_input}
-            for inv in record.tool_invocations
+            {"tool": inv.get("tool", ""), "input": inv.get("input", {})}
+            for inv in execution_result.tool_invocations
         ]
 
         # Build file writes from tool invocations that look like writes.
         file_writes: list[dict[str, Any]] = []
-        for inv in record.tool_invocations:
-            if "write" in inv.tool_name.lower() and "path" in inv.tool_input:
-                file_writes.append({"path": inv.tool_input["path"]})
+        for inv in execution_result.tool_invocations:
+            tool_name = inv.get("tool", "")
+            tool_input = inv.get("input", {})
+            if "write" in tool_name.lower() and "path" in tool_input:
+                file_writes.append({"path": tool_input["path"]})
 
         # Get schema, side-effect allowlist, and output paths from workflow.
         schema = self._workflow.output.schema_def
@@ -432,7 +395,7 @@ class SecurityEnvelope:
         output_paths = self._workflow.output.output_paths
 
         return run_pipeline(
-            output=record.final_output,
+            output=execution_result.output,
             schema=schema,
             tool_invocations=tool_invocations,
             side_effects_allowlist=side_effects_allowlist,

@@ -1,0 +1,8 @@
+Type: cli
+Command: agentry validate workflows/code-review.yaml
+Expected: Succeeds with updated envelope (no executor dependency).
+Timestamp: 2026-03-21T00:00:00Z
+
+{"status": "valid", "path": "/Users/norrie/code/agentry/workflows/code-review.yaml"}
+
+Status: PASS

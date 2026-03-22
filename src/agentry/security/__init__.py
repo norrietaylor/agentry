@@ -1,9 +1,10 @@
 """Security envelope and setup phase for sandboxed agent execution.
 
-Wraps the AgentExecutor with security controls including tool manifest
+Wraps a RunnerProtocol with security controls including tool manifest
 enforcement, runner lifecycle management, preflight checks, and output
 validation. The SecurityEnvelope is the primary entry point for executing
-workflows that require sandbox isolation.
+workflows that require sandbox isolation. Agent execution is delegated
+to runner.execute(runner_context, agent_config).
 
 SetupPhase executes all preparation steps (provisioning, network isolation
 verification, preflight checks, schema compilation, manifest generation)
@@ -12,10 +13,10 @@ before the agent runs.
 Public API
 ----------
 Envelope:
-- :class:`~agentry.security.envelope.SecurityEnvelope` -- Wraps AgentExecutor
-  with security controls.
-- :class:`~agentry.security.envelope.RunnerProtocol` -- Protocol for execution
-  environment runners.
+- :class:`~agentry.security.envelope.SecurityEnvelope` -- Wraps a runner
+  with security controls; delegates agent execution to the runner.
+- :class:`~agentry.runners.protocol.RunnerProtocol` -- Protocol for execution
+  environment runners (canonical definition in runners.protocol).
 - :class:`~agentry.security.envelope.PreflightCheck` -- Protocol for preflight
   checks.
 - :class:`~agentry.security.envelope.EnvelopeResult` -- Result of a secured
@@ -39,12 +40,14 @@ Setup:
 - :exc:`~agentry.security.setup.SchemaCompilationError` -- Schema invalid.
 
 Concrete checks:
+- :class:`~agentry.security.checks.AgentAvailabilityCheck` -- Validates agent binary.
 - :class:`~agentry.security.checks.AnthropicAPIKeyCheck` -- Validates API key.
 - :class:`~agentry.security.checks.DockerAvailableCheck` -- Validates Docker.
 - :class:`~agentry.security.checks.FilesystemMountsCheck` -- Validates paths.
 """
 
 from agentry.security.checks import (
+    AgentAvailabilityCheck,
     AnthropicAPIKeyCheck,
     DockerAvailableCheck,
     FilesystemMountsCheck,
@@ -88,6 +91,7 @@ __all__ = [
     "SetupProvisionError",
     "fingerprint_credential",
     # Concrete checks
+    "AgentAvailabilityCheck",
     "AnthropicAPIKeyCheck",
     "DockerAvailableCheck",
     "FilesystemMountsCheck",
