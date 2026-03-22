@@ -1,0 +1,32 @@
+Type: test
+Command: python3 -m pytest tests/integration/test_pr_create.py -v
+Expected: 15 passed
+Timestamp: 2026-03-22T00:00:00Z
+
+Output:
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT
+
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_creates_new_branch PASSED [  6%]
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_commits_specified_files PASSED [ 13%]
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_returns_branch_name PASSED [ 20%]
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_returns_pr_url_from_gh PASSED [ 26%]
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_refuses_force_push PASSED [ 33%]
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_raises_for_protected_branch_main PASSED [ 40%]
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_raises_for_protected_branch_master PASSED [ 46%]
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_uses_configurable_base_branch PASSED [ 53%]
+tests/integration/test_pr_create.py::TestLocalBinderPrCreate::test_pr_create_applies_agent_proposed_label PASSED [ 60%]
+tests/integration/test_pr_create.py::TestGitHubActionsBinderPrCreate::test_pr_create_via_api_returns_created_status PASSED [ 66%]
+tests/integration/test_pr_create.py::TestGitHubActionsBinderPrCreate::test_pr_create_via_api_returns_pr_url PASSED [ 73%]
+tests/integration/test_pr_create.py::TestGitHubActionsBinderPrCreate::test_pr_create_raises_for_protected_branch PASSED [ 80%]
+tests/integration/test_pr_create.py::TestGitHubActionsBinderPrCreate::test_pr_create_handles_403_error_gracefully PASSED [ 86%]
+tests/integration/test_pr_create.py::TestGitHubActionsBinderPrCreate::test_pr_create_handles_404_error_gracefully PASSED [ 93%]
+tests/integration/test_pr_create.py::TestGitHubActionsBinderPrCreate::test_pr_create_error_message_mentions_permissions_on_403 PASSED [100%]
+
+============================== 15 passed in 1.54s ==============================
+
+Status: PASS

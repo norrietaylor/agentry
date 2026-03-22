@@ -1,0 +1,9 @@
+Type: cli
+Command: python3 -m ruff check tests/integration/test_pr_create.py
+Expected: All checks passed!
+Timestamp: 2026-03-22T00:00:00Z
+
+Output:
+All checks passed!
+
+Status: PASS
