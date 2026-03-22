@@ -1,0 +1,37 @@
+name: "Agentry: Code Review"
+
+'on':
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  agentry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install agentry
+        run: pip install .
+
+      - name: Run agentry
+        run: >
+          agentry run workflows/code-review.yaml
+          --input diff=${{ github.event.pull_request.head.sha }}~1
+          --input codebase=.
+          --binder github-actions
+          --output-format json
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
