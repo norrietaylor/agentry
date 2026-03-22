@@ -1,0 +1,60 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_git_diff_resolution.py --verbose
+Expected: All 42 tests pass
+Timestamp: 2026-03-22T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 42 items
+
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_head PASSED [  2%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_head_tilde_1 PASSED [  4%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_head_tilde_3 PASSED [  7%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_head_caret_2 PASSED [  9%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_head_caret_no_number PASSED [ 11%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_sha_prefix_7_chars PASSED [ 14%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_sha_prefix_40_chars PASSED [ 16%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_sha_prefix_mixed_case PASSED [ 19%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_range_syntax_double_dot PASSED [ 21%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_range_syntax_triple_dot PASSED [ 23%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_range_syntax_with_remote PASSED [ 26%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_named_ref_main PASSED [ 28%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_named_ref_origin_main PASSED [ 30%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_named_ref_feature_branch PASSED [ 33%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefValid::test_named_ref_semver_tag PASSED [ 35%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_raw_diff_text_starts_with_diff PASSED [ 38%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_raw_diff_text_with_diff_header PASSED [ 40%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_multi_line_text PASSED [ 42%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_empty_string PASSED [ 45%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_whitespace_only PASSED [ 47%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_arbitrary_string_with_spaces PASSED [ 50%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_string_with_leading_dashes PASSED [ 52%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_string_with_shell_redirection PASSED [ 54%]
+tests/unit/test_git_diff_resolution.py::TestIsGitRefInvalid::test_string_with_semicolon PASSED [ 57%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffWithRef::test_returns_string_for_valid_ref PASSED [ 59%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffWithRef::test_diff_contains_changed_file PASSED [ 61%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffWithRef::test_head_with_clean_worktree_returns_empty PASSED [ 64%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffWithRef::test_uses_target_from_spec PASSED [ 66%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffRawText::test_raw_diff_text_returned_unchanged PASSED [ 69%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffRawText::test_arbitrary_non_ref_string_returned_unchanged PASSED [ 71%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffRawText::test_multi_line_string_returned_unchanged PASSED [ 73%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffFallback::test_invalid_ref_falls_back_to_raw_value PASSED [ 76%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffFallback::test_nonexistent_branch_falls_back PASSED [ 78%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffNonGitDir::test_raises_for_non_git_dir_with_ref PASSED [ 80%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffNonGitDir::test_error_mentions_path PASSED [ 83%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffNonGitDir::test_does_not_raise_for_raw_diff_in_non_git_dir PASSED [ 85%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffTargetFromSpec::test_spec_target_used_for_diff PASSED [ 88%]
+tests/unit/test_git_diff_resolution.py::TestResolveGitDiffTargetFromSpec::test_spec_without_target_uses_cwd PASSED [ 90%]
+tests/unit/test_git_diff_resolution.py::TestResolveInputsIntegration::test_resolve_inputs_git_diff_with_ref PASSED [ 92%]
+tests/unit/test_git_diff_resolution.py::TestResolveInputsIntegration::test_resolve_inputs_git_diff_with_raw_text PASSED [ 95%]
+tests/unit/test_git_diff_resolution.py::TestResolveInputsIntegration::test_resolve_inputs_git_diff_non_git_dir_raises PASSED [ 97%]
+tests/unit/test_git_diff_resolution.py::TestResolveInputsIntegration::test_resolve_inputs_git_diff_invalid_ref_fallback PASSED [100%]
+
+============================== 42 passed in 1.16s ==============================
+
+Status: PASS
