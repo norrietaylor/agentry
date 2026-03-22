@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Agentry Logomark — Target + Dispatch (Dark BG) -->
+  <circle cx="256" cy="256" r="216" fill="none" stroke="#e0e0e0" stroke-width="13"/>
+  <circle cx="256" cy="256" r="138" fill="none" stroke="#e0e0e0" stroke-width="9"/>
+  <circle cx="256" cy="256" r="58" fill="none" stroke="#e0e0e0" stroke-width="7"/>
+  <line x1="408" y1="104" x2="282" y2="230" stroke="#5DCAA5" stroke-width="15" stroke-linecap="round"/>
+  <polygon points="274,238 306,216 292,250" fill="#5DCAA5"/>
+  <circle cx="256" cy="256" r="15" fill="#5DCAA5"/>
+</svg>

@@ -1,6 +1,14 @@
-# Agentry
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/agentry-logo-dark.svg" width="128">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/agentry-logo-light.svg" width="128">
+    <img alt="Agentry" src="docs/assets/agentry-logo-dark.svg" width="128">
+  </picture>
+</p>
 
-Portable agentic workflow orchestration. Define AI agent workflows once, run them identically on your laptop and in CI.
+<h1 align="center">Agentry</h1>
+
+<p align="center">Portable agentic workflow orchestration.<br>Define AI agent workflows once, run them identically on your laptop and in CI.</p>
 
 Agentry treats agentic workflows as declarative, versionable definitions. A workflow specifies what an agent needs (inputs), what it can do (tools), which agent runtime executes the work (Claude Code, with more runtimes planned), what constraints it operates under (safety), and what it produces (output schema). The same definition runs locally via `agentry run` and generates GitHub Actions pipelines via `agentry ci generate`.
 

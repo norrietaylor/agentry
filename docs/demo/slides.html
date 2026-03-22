@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentry — Portable Agentic Workflow Orchestration</title>
+<style>
+  :root {
+    --bg: #0a0a1a;
+    --surface: #12122a;
+    --text: #e8e8f0;
+    --muted: #8888aa;
+    --accent: #5DCAA5;
+    --blue: #4a90d9;
+    --green: #5DCAA5;
+    --navy: #1a1a2e;
+    --code-bg: #1a1a2e;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  .deck { height: 100vh; width: 100vw; position: relative; }
+
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 120px;
+  }
+
+  .slide.active { display: flex; }
+
+  h1 {
+    font-size: 3.2rem;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 24px;
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    font-size: 2.4rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 20px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--blue);
+  }
+
+  p, li {
+    font-size: 1.5rem;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  ul { list-style: none; padding: 0; }
+
+  ul li {
+    padding: 8px 0;
+    padding-left: 28px;
+    position: relative;
+  }
+
+  ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 18px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .accent { color: var(--accent); }
+  .blue { color: var(--blue); }
+  .green { color: var(--green); }
+  .white { color: var(--text); }
+
+  code {
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+
+  pre {
+    background: var(--code-bg);
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin: 20px 0;
+    overflow-x: auto;
+    font-size: 1.1rem;
+    line-height: 1.5;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 1.1rem;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 36px;
+    align-items: start;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 32px;
+  }
+
+  .card h3 { margin-bottom: 16px; }
+  .card p { font-size: 1.2rem; }
+
+  .tag {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-right: 8px;
+    margin-bottom: 8px;
+  }
+
+  .tag-done { background: #1a3a2a; color: var(--green); }
+  .tag-next { background: #1a2a3a; color: var(--blue); }
+  .tag-blue { background: #1a2a3a; color: var(--blue); }
+
+  .arch-diagram {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 1.3rem;
+    line-height: 2;
+    color: var(--text);
+  }
+
+  .arch-diagram .layer {
+    padding: 12px 24px;
+    margin: 4px 0;
+    border-radius: 8px;
+    border-left: 4px solid;
+  }
+
+  .layer-1 { background: #1a2e2a; border-color: var(--accent); margin-left: 0; }
+  .layer-2 { background: #16213e; border-color: var(--blue); margin-left: 48px; }
+  .layer-3 { background: #1a2a3a; border-color: var(--green); margin-left: 96px; }
+  .layer-4 { background: #1a3a2a; border-color: #8888aa; margin-left: 144px; }
+
+  .subtitle {
+    font-size: 1.6rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .big-number {
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 1.1rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .progress-bar {
+    height: 3px;
+    background: #2a2a4a;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+
+  .slide-number {
+    position: fixed;
+    bottom: 16px;
+    right: 32px;
+    font-size: 0.9rem;
+    color: #444;
+    z-index: 100;
+  }
+
+  .logo-text {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+
+  .divider {
+    width: 64px;
+    height: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    margin: 24px 0;
+  }
+
+  .flow-arrow {
+    color: var(--accent);
+    font-size: 1.4rem;
+    margin: 0 12px;
+  }
+
+  .flow-item {
+    display: inline-block;
+    padding: 8px 20px;
+    background: var(--surface);
+    border: 1px solid #2a2a4a;
+    border-radius: 8px;
+    font-size: 1.2rem;
+  }
+
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+  }
+
+  .comparison-table th, .comparison-table td {
+    text-align: left;
+    padding: 16px 20px;
+    font-size: 1.2rem;
+    border-bottom: 1px solid #2a2a4a;
+  }
+
+  .comparison-table th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .comparison-table td { color: var(--text); }
+  .comparison-table .dim { color: #555; }
+</style>
+</head>
+<body>
+<div class="deck">
+
+  <!-- Slide 1: Title -->
+  <div class="slide active" id="s1">
+    <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+      <img src="../assets/agentry-logo-dark.svg" alt="Agentry" width="64">
+      <span class="logo-text" style="margin-bottom:0;">Agentry</span>
+    </div>
+    <h1>Portable Agentic<br>Workflow Orchestration</h1>
+    <div class="divider"></div>
+    <p style="font-size:1.6rem;">Define AI agent workflows once.<br>Run them identically on your laptop and in CI.</p>
+    <p style="margin-top:32px; font-size:1.1rem; color:#555;">github.com/norrietaylor/agentry &mdash; Apache 2.0</p>
+  </div>
+
+  <!-- Slide 2: The Problem -->
+  <div class="slide" id="s2">
+    <h2>The Problem</h2>
+    <div class="divider"></div>
+    <ul>
+      <li><span class="white">AI agents are powerful</span> but hard to operationalize</li>
+      <li>Running an agent locally ≠ running it in CI</li>
+      <li>No standard for <span class="accent">security boundaries</span>, <span class="blue">tool manifests</span>, or <span class="green">output contracts</span></li>
+      <li>Multi-agent pipelines require custom glue code every time</li>
+    </ul>
+  </div>
+
+  <!-- Slide 3: The Solution -->
+  <div class="slide" id="s3">
+    <h2>One Definition, Every Environment</h2>
+    <div class="divider"></div>
+    <div class="grid-2">
+      <div>
+        <h3>Workflow YAML</h3>
+        <pre><code><span class="accent">agent:</span>
+  runtime: claude-code
+  model: claude-sonnet-4-20250514
+  system_prompt: prompts/review.md
+
+<span class="blue">tools:</span>
+  capabilities:
+    - repository:read
+
+<span class="green">safety:</span>
+  trust: sandboxed
+  resources:
+    timeout: 300</code></pre>
+      </div>
+      <div>
+        <h3>What It Declares</h3>
+        <ul>
+          <li><span class="accent">Which agent</span> runs the work</li>
+          <li><span class="blue">What tools</span> the agent can access</li>
+          <li><span class="green">What constraints</span> are enforced</li>
+          <li>What <span class="white">inputs</span> are required</li>
+          <li>What <span class="white">output schema</span> is expected</li>
+        </ul>
+        <p style="margin-top:24px;">Same file &rarr; <code>agentry run</code> locally<br>Same file &rarr; <code>agentry ci generate</code> for CI</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 4: Architecture -->
+  <div class="slide" id="s4">
+    <h2>Four-Layer Architecture</h2>
+    <div class="divider"></div>
+    <div class="arch-diagram">
+      <div class="layer layer-1">
+        <span class="accent">Agentry</span> &mdash; orchestration, CLI, composition engine
+      </div>
+      <div class="layer layer-2">
+        <span class="blue">Runner</span> &mdash; execution environment (Docker sandbox, in-process)
+      </div>
+      <div class="layer layer-3">
+        <span class="green">Agent</span> &mdash; coding agent runtime (Claude Code, extensible)
+      </div>
+      <div class="layer layer-4">
+        <span style="color:#8888aa">Model</span> &mdash; LLM (Claude, with agent handling all API interaction)
+      </div>
+    </div>
+    <p style="margin-top:32px;">Agentry never makes direct LLM API calls.<br>Runners own the environment. Agents own the intelligence.</p>
+  </div>
+
+  <!-- Slide 5: Security -->
+  <div class="slide" id="s5">
+    <h2>Security by Default</h2>
+    <div class="divider"></div>
+    <div class="grid-3">
+      <div class="card">
+        <h3>Least Privilege</h3>
+        <p>Tool manifest enforcement. Agents only access declared capabilities. <code>repository:read</code> means no writes.</p>
+      </div>
+      <div class="card">
+        <h3>Sandbox Isolation</h3>
+        <p>Docker containers with CPU/memory limits, read-only mounts, non-root user, DNS-based egress filtering.</p>
+      </div>
+      <div class="card">
+        <h3>Signing &amp; Audit</h3>
+        <p>Ed25519 signatures over safety blocks. Security audit diffs between workflow versions. Preflight checks before execution.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 6: Composition -->
+  <div class="slide" id="s6">
+    <h2>Multi-Agent Composition</h2>
+    <div class="divider"></div>
+    <div style="text-align:center; margin: 24px 0;">
+      <span class="flow-item">Triage</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item">Decompose</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item">Summarize</span>
+    </div>
+    <div class="grid-2" style="margin-top:24px;">
+      <div>
+        <h3>DAG Scheduling</h3>
+        <ul>
+          <li>Independent nodes run <span class="white">concurrently</span></li>
+          <li>Data flows between nodes via output references</li>
+          <li>Single-node debugging with <code>--node</code></li>
+        </ul>
+      </div>
+      <div>
+        <h3>Failure Policies</h3>
+        <ul>
+          <li><span class="accent">abort</span> &mdash; halt the pipeline</li>
+          <li><span class="blue">retry</span> &mdash; re-execute with backoff</li>
+          <li><span class="green">skip</span> &mdash; pass failure downstream</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 7: CI Generation -->
+  <div class="slide" id="s7">
+    <h2>CI Generation</h2>
+    <div class="divider"></div>
+    <pre><code>$ agentry ci generate --target github workflows/code-review.yaml</code></pre>
+    <div class="grid-2" style="margin-top:16px;">
+      <div>
+        <h3>What It Produces</h3>
+        <ul>
+          <li>Ready-to-commit GitHub Actions YAML</li>
+          <li>Minimal token permissions from tool manifest</li>
+          <li>Configurable triggers (PR, push, schedule, issues)</li>
+          <li>Auto-detection of CI environment at runtime</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Permission Derivation</h3>
+        <table class="comparison-table">
+          <tr><th>Tool</th><th>Permission</th></tr>
+          <tr><td><code>repository:read</code></td><td>contents: read</td></tr>
+          <tr><td><code>pr:comment</code></td><td>pull-requests: write</td></tr>
+          <tr><td><code>pr:review</code></td><td>pull-requests: write</td></tr>
+          <tr><td><code>issue:create</code></td><td>issues: write</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 8: What We've Built -->
+  <div class="slide" id="s8">
+    <h2>What We've Built</h2>
+    <div class="divider"></div>
+    <div class="grid-3" style="margin-bottom:32px;">
+      <div style="text-align:center">
+        <div class="big-number">5</div>
+        <div class="stat-label">Phases complete</div>
+      </div>
+      <div style="text-align:center">
+        <div class="big-number">1600+</div>
+        <div class="stat-label">Tests passing</div>
+      </div>
+      <div style="text-align:center">
+        <div class="big-number">5</div>
+        <div class="stat-label">Standard workflows</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <span class="tag tag-done">DONE</span> <span class="white">CLI &amp; workflow parsing</span><br>
+        <span class="tag tag-done">DONE</span> <span class="white">Security envelope &amp; signing</span><br>
+        <span class="tag tag-done">DONE</span> <span class="white">Composition engine</span><br>
+        <span class="tag tag-done">DONE</span> <span class="white">GitHub Actions binder &amp; CI gen</span><br>
+        <span class="tag tag-done">DONE</span> <span class="white">Agent runtime abstraction</span>
+      </div>
+      <div>
+        <span class="tag tag-next">NEXT</span> <span class="white">Write-side tools</span><br>
+        <span class="tag tag-next">NEXT</span> <span class="white">Task board</span><br>
+        <span class="tag tag-next">NEXT</span> <span class="white">Human approval gates</span><br>
+        <span class="tag tag-next">NEXT</span> <span class="white">Dynamic composition</span><br>
+        <span class="tag tag-next">NEXT</span> <span class="white">Role protocols</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 9: The Vision -->
+  <div class="slide" id="s9">
+    <h2>The Vision: Self-Hosting</h2>
+    <div class="divider"></div>
+    <p style="font-size:1.6rem; color:var(--text); margin-bottom:32px;">Agentry developing itself.</p>
+    <div style="text-align:center; margin:24px 0; line-height:2.8;">
+      <span class="flow-item"><span class="accent">Research</span></span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item"><span class="accent">Spec</span></span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item"><span class="blue">Plan</span></span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item"><span class="blue">Dispatch</span></span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item"><span class="green">Implement</span></span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item"><span class="green">Validate</span></span>
+    </div>
+    <pre style="margin-top:24px;"><code>$ agentry run workflows/develop.yaml \
+    --input spec=docs/specs/07-spec-feature.md</code></pre>
+    <p style="margin-top:16px;">Full development lifecycle as a composed workflow. No external plugins.</p>
+  </div>
+
+  <!-- Slide 10: Extensibility -->
+  <div class="slide" id="s10">
+    <h2>Designed to Extend</h2>
+    <div class="divider"></div>
+    <div class="grid-2">
+      <div>
+        <h3>Add an Agent Runtime</h3>
+        <p>Implement <code>AgentProtocol</code>, register in <code>AgentRegistry</code>. One protocol, one registration.</p>
+        <pre style="font-size:0.95rem;"><code>class MyAgent:
+  def execute(self,
+    task: AgentTask
+  ) -> AgentResult: ...
+
+  def check_available(self)
+    -> AgentStatus: ...</code></pre>
+      </div>
+      <div>
+        <h3>Add a CI Target</h3>
+        <p>Implement <code>EnvironmentBinder</code>. Entry-point based discovery.</p>
+        <pre style="font-size:0.95rem;"><code># pyproject.toml
+[project.entry-points.
+  "agentry.binders"]
+gitlab =
+  "my_pkg:GitLabBinder"</code></pre>
+        <p style="margin-top:16px;"><span class="tag tag-blue">Planned</span> GitLab CI, Jenkins</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 11: Closing -->
+  <div class="slide" id="s11">
+    <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
+      <img src="../assets/agentry-logo-dark.svg" alt="Agentry" width="64">
+      <span class="logo-text" style="margin-bottom:0;">Agentry</span>
+    </div>
+    <h1>Define Once.<br>Run Everywhere.</h1>
+    <div class="divider"></div>
+    <p style="font-size:1.4rem; margin-bottom:32px;">
+      Open source &middot; Apache 2.0 &middot; Python 3.10+
+    </p>
+    <p style="font-size:1.6rem; color:var(--text);">
+      github.com/norrietaylor/agentry
+    </p>
+  </div>
+
+</div>
+
+<div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+<div class="slide-number" id="slideNum"></div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+
+  function show(n) {
+    slides[current].classList.remove('active');
+    current = Math.max(0, Math.min(n, slides.length - 1));
+    slides[current].classList.add('active');
+    document.getElementById('progress').style.width =
+      ((current + 1) / slides.length * 100) + '%';
+    document.getElementById('slideNum').textContent =
+      (current + 1) + ' / ' + slides.length;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); show(current + 1); }
+    if (e.key === 'ArrowLeft' || e.key === 'Backspace') { e.preventDefault(); show(current - 1); }
+    if (e.key === 'Home') { e.preventDefault(); show(0); }
+    if (e.key === 'End') { e.preventDefault(); show(slides.length - 1); }
+  });
+
+  document.addEventListener('click', e => {
+    if (e.clientX > window.innerWidth / 2) show(current + 1);
+    else show(current - 1);
+  });
+
+  show(0);
+</script>
+</body>
+</html>
