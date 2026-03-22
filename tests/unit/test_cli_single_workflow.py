@@ -108,7 +108,7 @@ def test_json_output_contains_required_fields(tmp_path: Path) -> None:
         token_usage={"input": 200, "output": 80},
     )
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     with patch("agentry.runners.detector.RunnerDetector") as mock_detector_cls, \
          patch("agentry.security.envelope.SecurityEnvelope.execute",
@@ -158,7 +158,7 @@ def test_text_output_is_human_readable(tmp_path: Path) -> None:
         token_usage={"input": 100, "output": 40},
     )
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     with patch("agentry.runners.detector.RunnerDetector") as mock_detector_cls, \
          patch("agentry.security.envelope.SecurityEnvelope.execute",
@@ -209,7 +209,7 @@ def test_agent_execution_error_exits_one(tmp_path: Path) -> None:
         error="agent timed out after 120 seconds",
     )
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     with patch("agentry.runners.detector.RunnerDetector") as mock_detector_cls, \
          patch("agentry.security.envelope.SecurityEnvelope.execute",
@@ -234,7 +234,10 @@ def test_agent_execution_error_exits_one(tmp_path: Path) -> None:
         f"Expected exit code 1 for agent error, got {result.exit_code}"
     )
     # Error message should appear in stdout or stderr
-    stderr = result.stderr if hasattr(result, "stderr") else ""
+    try:
+        stderr = result.stderr
+    except ValueError:
+        stderr = ""
     combined = result.output + stderr
     assert "Error" in combined or "error" in combined.lower() or "timed out" in combined, (
         f"Expected error message in output/stderr: stdout={result.output!r}"
@@ -253,7 +256,7 @@ def test_missing_api_key_exits_one_with_clear_error(tmp_path: Path) -> None:
 
     from agentry.security.envelope import PreflightCheckResult
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     with patch(
         "agentry.security.checks.AnthropicAPIKeyCheck.run",
@@ -294,7 +297,7 @@ def test_skip_preflight_bypasses_api_key_check(tmp_path: Path) -> None:
 
     mock_env_result = _make_mock_envelope_result()
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     with patch("agentry.runners.detector.RunnerDetector") as mock_detector_cls, \
          patch("agentry.security.envelope.SecurityEnvelope.execute",
@@ -334,7 +337,7 @@ def test_invalid_input_format_rejected(tmp_path: Path) -> None:
     wf = tmp_path / "code-review.yaml"
     wf.write_text(_SINGLE_WORKFLOW_YAML)
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     result = runner.invoke(
         main,
@@ -350,7 +353,10 @@ def test_invalid_input_format_rejected(tmp_path: Path) -> None:
     assert result.exit_code == 1, (
         f"Expected exit code 1 for bad --input, got {result.exit_code}"
     )
-    stderr = result.stderr if hasattr(result, "stderr") else ""
+    try:
+        stderr = result.stderr
+    except ValueError:
+        stderr = ""
     combined = result.output + stderr
     assert "KEY=VALUE" in combined or "nodequalsign" in combined, (
         f"Expected descriptive error in output/stderr: stdout={result.output!r}"
@@ -369,7 +375,7 @@ def test_runner_detector_called_with_agent_config(tmp_path: Path) -> None:
 
     mock_env_result = _make_mock_envelope_result()
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     with patch("agentry.runners.detector.RunnerDetector") as mock_detector_cls, \
          patch("agentry.security.envelope.SecurityEnvelope.execute",

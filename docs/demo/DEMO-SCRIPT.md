@@ -151,25 +151,63 @@ Agentry (orchestration)
 
 ---
 
-## Act 8: The Vision — Self-Hosting (2 min)
+## Act 8: Self-Development — It's Working (3 min)
 
-**Talking point:** Agentry was built with the claude-workflow plugin — an external tool that manages specs, planning, dispatching, and implementation. The goal is to replace that plugin with Agentry itself.
+**Talking point:** Agentry now develops itself. This isn't a vision slide — it's live.
 
-**What's done (Phases 1-5):**
+### Self-reviewing PRs
+
+```bash
+# This is committed in .github/workflows/agentry-code-review.yml
+# Every PR to the repo gets reviewed by agentry's own code-review workflow
+cat .github/workflows/agentry-code-review.yml
+```
+
+**Talking point:** Every PR to the agentry repo is automatically reviewed by `agentry run workflows/code-review.yaml`. The agent posts findings as PR comments. Same workflow definition, running in CI with the github-actions binder.
+
+### Agent-generated PRs
+
+```bash
+uv run agentry run workflows/bug-fix.yaml \
+  --input issue-description="Fix typo in README" \
+  --target . \
+  --output-format json \
+  --skip-preflight
+```
+
+**Talking point:** The bug-fix workflow can create a branch and open a PR with proposed changes. The `pr:create` tool binding works locally (via `gh` CLI) and in CI (via GitHub REST API). All agent PRs are labeled `agent-proposed` and require human review — no auto-merge.
+
+### Git-diff resolution
+
+```bash
+uv run agentry run workflows/code-review.yaml \
+  --input diff=HEAD~1 \
+  --input codebase=. \
+  --target . \
+  --output-format json \
+  --skip-preflight
+```
+
+**Talking point:** `--input diff=HEAD~1` automatically resolves the git ref to actual diff content. No shell workaround needed. Works with any git ref syntax: commit SHAs, branch ranges, HEAD~N.
+
+**What's done (Phases 1-6):**
 - Workflow parsing, validation, CLI
 - Security envelope, signing, preflight
 - Composition engine (DAG scheduling)
 - CI generation (GitHub Actions)
 - Agent runtime abstraction (Runner → Agent → Model)
+- **Single-workflow execution pipeline (real, not stub)**
+- **Git-diff input resolution**
+- **Self-reviewing PRs in CI**
+- **Agent-generated PRs via `pr:create`**
 
-**What's next (Phases 6-7):**
-- Write-side tools (file:write, git:commit) — agents that modify code
+**What's next (Phase 7+):**
 - Task board — mutable work tracking across agents
-- Human interaction — pause for approval mid-pipeline
+- Human approval gates — pause for confirmation mid-pipeline
 - Dynamic composition — runtime-determined DAG shapes
 - Role protocols — researcher, planner, implementer, validator as workflows
 
-**Talking point:** When Phase 7 is done, `agentry run workflows/develop.yaml --input spec=docs/specs/07-spec-feature.md` will run the full development lifecycle: research → spec → plan → dispatch → implement → validate. Agentry developing itself.
+**Talking point:** When Phase 7 is done, `agentry run workflows/develop.yaml --input spec=docs/specs/07-spec-feature.md` will run the full development lifecycle as a composed workflow. We're one phase away.
 
 ---
 
@@ -210,5 +248,5 @@ uv run python -c "from agentry.agents.registry import AgentRegistry; print(list(
 
 ```bash
 uv run pytest tests/ --tb=short -q 2>&1 | tail -3
-# Shows: 1500+ passed
+# Shows: 1580+ passed
 ```

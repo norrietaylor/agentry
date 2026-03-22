@@ -46,7 +46,6 @@ from agentry.models.workflow import WorkflowDefinition
 from agentry.security.envelope import (
     PreflightCheck,
     PreflightCheckResult,
-    RunnerProtocol,
 )
 from agentry.security.signing import (
     DEFAULT_PUBLIC_KEY_PATH,
@@ -295,7 +294,7 @@ def _compile_schema(schema: dict[str, Any]) -> bool:
     if not schema:
         return True
     try:
-        import jsonschema  # type: ignore[import-untyped]
+        import jsonschema
 
         jsonschema.Draft7Validator.check_schema(schema)
         return True
@@ -355,7 +354,7 @@ class SetupPhase:
     def __init__(
         self,
         workflow: WorkflowDefinition,
-        runner: RunnerProtocol,
+        runner: Any,
         preflight_checks: list[PreflightCheck] | None = None,
         api_key: str = "",
         extra_credentials: dict[str, str] | None = None,

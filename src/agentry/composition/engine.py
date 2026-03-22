@@ -29,7 +29,7 @@ from collections.abc import Callable
 from graphlib import TopologicalSorter
 from pathlib import Path
 
-from agentry.binders.local import LocalBinder
+from agentry.binders.protocol import EnvironmentBinder
 from agentry.composition import data_passing as _data_passing
 from agentry.composition.failure import (
     CompositionAbortError,
@@ -75,7 +75,7 @@ class CompositionEngine:
         self,
         composition: CompositionBlock,
         runner_detector: RunnerDetector,
-        binder: LocalBinder,
+        binder: EnvironmentBinder,
         run_dir: Path,
         workflow_base_dir: Path,
         on_node_start: Callable[[str], None] | None = None,

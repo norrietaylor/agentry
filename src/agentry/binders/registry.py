@@ -108,4 +108,5 @@ def get_binder(name: str | None = None) -> EnvironmentBinder:
         )
 
     binder_cls = available[name]
-    return binder_cls()  # type: ignore[return-value]
+    binder: EnvironmentBinder = binder_cls()
+    return binder

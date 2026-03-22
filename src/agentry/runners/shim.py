@@ -62,7 +62,7 @@ def load_config(config_path: str) -> dict[str, Any]:
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
     with path.open() as fh:
-        config = json.load(fh)
+        config: dict[str, Any] = json.load(fh)
 
     required_keys = {"system_prompt", "resolved_inputs", "tool_names"}
     missing = required_keys - set(config.keys())

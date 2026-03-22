@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # even when dnslib is not installed (e.g. during unit tests that mock the
 # DNS layer).
 try:
-    from dnslib import QTYPE, RR, A, DNSHeader, DNSRecord  # type: ignore[import-untyped]
+    from dnslib import QTYPE, RR, A, DNSHeader, DNSRecord
 
     _DNSLIB_AVAILABLE = True
 except ImportError:
@@ -310,7 +310,8 @@ class DNSFilteringProxy:
             The resolved IP address string, or ``None`` on failure.
         """
         if self._upstream_resolver is not None:
-            return self._upstream_resolver(domain, query_type)
+            result: str | None = self._upstream_resolver(domain, query_type)
+            return result
 
         # Fall back to socket-based resolution for A records.
         if query_type.upper() == "A":
@@ -383,7 +384,8 @@ class DNSFilteringProxy:
                 q=request.q,
             )
 
-        return response.pack()
+        packed: bytes = response.pack()
+        return packed
 
     # ------------------------------------------------------------------
     # Server lifecycle

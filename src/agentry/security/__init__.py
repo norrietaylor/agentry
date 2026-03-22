@@ -46,6 +46,7 @@ Concrete checks:
 - :class:`~agentry.security.checks.FilesystemMountsCheck` -- Validates paths.
 """
 
+from agentry.runners.protocol import RunnerProtocol
 from agentry.security.checks import (
     AgentAvailabilityCheck,
     AnthropicAPIKeyCheck,
@@ -56,7 +57,6 @@ from agentry.security.envelope import (
     EnvelopeResult,
     PreflightCheck,
     PreflightError,
-    RunnerProtocol,
     SecurityEnvelope,
     SecurityEnvelopeError,
     ToolManifestViolationError,

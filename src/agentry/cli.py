@@ -740,21 +740,21 @@ def run(
             _agent_runtime = _loaded_workflow.agent.runtime
 
         # 2. Build agent kwargs from the agent block.
-        _agent_kwargs: dict[str, Any] = {}
+        _sw_agent_kwargs: dict[str, Any] = {}
         if _loaded_workflow.agent is not None:
             if _loaded_workflow.agent.model:
-                _agent_kwargs["model"] = _loaded_workflow.agent.model
+                _sw_agent_kwargs["model"] = _loaded_workflow.agent.model
             if _loaded_workflow.agent.max_iterations is not None:
-                _agent_kwargs["max_iterations"] = _loaded_workflow.agent.max_iterations
+                _sw_agent_kwargs["max_iterations"] = _loaded_workflow.agent.max_iterations
 
         # 3. Instantiate RunnerDetector and get runner.
         _registry = AgentRegistry.default()
         _detector = RunnerDetector(
             agent_registry=_registry,
             agent_name=_agent_runtime,
-            agent_kwargs=_agent_kwargs,
+            agent_kwargs=_sw_agent_kwargs,
         )
-        _runner = _detector.get_runner(_loaded_workflow.safety)
+        _sw_runner = _detector.get_runner(_loaded_workflow.safety)
 
         # 4. Build preflight checks (respecting --skip-preflight).
         _envelope_checks: list[Any] = []
@@ -784,7 +784,7 @@ def run(
         # 5. Instantiate SecurityEnvelope.
         _envelope = SecurityEnvelope(
             workflow=_loaded_workflow,
-            runner=_runner,
+            runner=_sw_runner,
             preflight_checks=_envelope_checks,
         )
 
@@ -817,7 +817,7 @@ def run(
             resolved_inputs=_resolved_inputs,
             available_tools=list(_tool_bindings.keys()),
             agent_name=_agent_runtime,
-            agent_config=_agent_kwargs,
+            agent_config=_sw_agent_kwargs,
         )
 
         # 10. Handle the result.
