@@ -69,7 +69,7 @@ def test_run_command_missing_file() -> None:
 
 def test_run_command_valid_yaml() -> None:
     """Test the run subcommand with a valid YAML file."""
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     with runner.isolated_filesystem():
         with open("test.yaml", "w") as f:
             f.write("version: 1\nname: test\n")
@@ -486,7 +486,7 @@ def test_run_skip_preflight_bypasses_checks(tmp_path: "pytest.TempPathFactory") 
     """agentry run --skip-preflight must bypass preflight checks even without API key."""
     wf = tmp_path / "workflow.yaml"  # type: ignore[operator]
     wf.write_text(_SETUP_WORKFLOW_YAML)  # type: ignore[union-attr]
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     # Note: missing ANTHROPIC_API_KEY would normally cause preflight to fail
     result = runner.invoke(
         cli,
@@ -508,7 +508,7 @@ def test_run_without_skip_preflight_requires_api_key(tmp_path: "pytest.TempPathF
     """agentry run without --skip-preflight must check for API key."""
     wf = tmp_path / "workflow.yaml"  # type: ignore[operator]
     wf.write_text(_SETUP_WORKFLOW_YAML)  # type: ignore[union-attr]
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(
         cli,
         [

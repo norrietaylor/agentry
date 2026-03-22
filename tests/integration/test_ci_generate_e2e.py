@@ -138,7 +138,7 @@ def _run_generate(
     extra_args: list[str] | None = None,
 ) -> "click.testing.Result":
     """Invoke ``agentry ci generate`` and return the CliRunner result."""
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     args = ["ci", "generate", "--target", target, workflow_path]
     if output_dir is not None:
         args += ["--output-dir", output_dir]
