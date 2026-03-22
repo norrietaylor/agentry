@@ -34,7 +34,6 @@ from agentry.runners.protocol import (
     ExecutionResult,
     RunnerContext,
     RunnerProtocol,
-    RunnerStatus,
 )
 from agentry.validation.pipeline import run_pipeline
 from agentry.validation.result import ValidationResult

@@ -1,7 +1,30 @@
 # Agentry Backlog
 
-Deferred items collected from Phase 1-4 specs, PRD, and source code.
+Deferred items collected from Phase 1-5 specs, PRD, RFC, and source code.
 Items are grouped by category. Each item notes its source and any recommended priority.
+
+---
+
+## Phase 5 Completed — Agent Runtime Refactoring
+
+Phase 5 (Agent Runtime) is complete. The four-layer architecture is in place: Agentry → Runner → Agent → Model. These items were deferred from the spec or emerged during implementation.
+
+- [x] **AgentProtocol** — PEP-544 runtime-checkable protocol for agent runtimes _(Phase 5)_
+- [x] **ClaudeCodeAgent** — Claude Code CLI backend via `claude -p` _(Phase 5)_
+- [x] **AgentRegistry** — maps runtime names to factory functions _(Phase 5)_
+- [x] **Runner-Agent integration** — runners own agent execution, InProcessRunner delegates to agent _(Phase 5)_
+- [x] **DockerRunner agent support** — runs Claude Code inside container, updated shim _(Phase 5)_
+- [x] **SecurityEnvelope cleanup** — unified RunnerProtocol, removed executor dependency _(Phase 5)_
+- [x] **Workflow `agent` block** — replaces `model` block with backward compat _(Phase 5)_
+- [ ] **Additional agent runtimes** — Open Code, Aider, Ollama-based agents _(Phase 5 Non-Goals)_
+- [ ] **Token budget enforcement** — configurable token budget per agent execution _(Phase 5 Non-Goals, RFC Gap 1)_
+- [ ] **Streaming agent output** — stream agent runtime output to CLI in real-time _(Phase 5 Non-Goals)_
+- [ ] **Remove AgentExecutor and LLM layer** — delete `executor.py` and `llm/` package, they are dead code after Phase 5 _(Phase 5 cleanup)_
+- [ ] **Standard Docker image with Claude Code** — publish `agentry-sandbox` base image _(Phase 5 Open Q)_
+- [ ] **Agent tool invocation records** — capture granular tool-use history from agent runtimes _(Phase 5 Open Q)_
+- [ ] **Claude Code `--allowedTools` integration** — enforce tool manifest at agent level _(Phase 5 Open Q)_
+
+_Source: Phase 5 spec Non-Goals, Open Questions, Technical Considerations_
 
 ---
 
@@ -62,9 +85,12 @@ _Source: repo readiness assessment_
 
 ---
 
-## LLM & Provider Support
+## Agent Runtimes & LLM Support
 
-- [ ] **OpenAI provider** — extend LLMClient protocol with OpenAI backend _(Phase 1 Non-Goals)_
+- [ ] **Open Code agent** — `AgentProtocol` implementation for Open Code _(Phase 5 Non-Goals)_
+- [ ] **Aider agent** — `AgentProtocol` implementation for Aider _(Phase 5 Non-Goals)_
+- [ ] **Ollama agent** — `AgentProtocol` implementation for local Ollama models _(Phase 5 Non-Goals)_
+- [ ] **OpenAI provider** — extend LLMClient protocol with OpenAI backend _(Phase 1 Non-Goals, may be superseded by agent runtimes)_
 - [ ] **Multi-model orchestration** — different models for different sub-tasks within a workflow _(PRD Decision Point)_
 - [ ] **Streaming output validation** — validate output incrementally instead of blocking _(PRD Decision Point)_
 
@@ -106,3 +132,5 @@ _Source: repo readiness assessment_
 - [ ] **Graceful fallback stubs** — several try/except ImportError blocks in cli.py for components that now exist
 - [ ] **`.env` pattern in .gitignore** — add `*.env` and `.env*` explicitly
 - [ ] **mypy strict errors** — 9 mypy strict errors in `github_actions.py` (consistent with codebase patterns) _(Phase 4 validation)_
+- [ ] **Delete `executor.py` and `llm/` package** — dead code after Phase 5 agent runtime refactoring
+- [ ] **Remove duplicate RunnerProtocol** — was in `security/envelope.py`, now unified but old tests may reference it

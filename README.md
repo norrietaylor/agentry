@@ -2,7 +2,7 @@
 
 Portable agentic workflow orchestration. Define AI agent workflows once, run them identically on your laptop and in CI.
 
-Agentry treats agentic workflows as declarative, versionable definitions. A workflow specifies what an agent needs (inputs), what it can do (tools), how it reasons (model config), what constraints it operates under (safety), and what it produces (output schema). The same definition runs locally via `agentry run` and generates GitHub Actions pipelines via `agentry ci generate`.
+Agentry treats agentic workflows as declarative, versionable definitions. A workflow specifies what an agent needs (inputs), what it can do (tools), which agent runtime executes the work (Claude Code, with more runtimes planned), what constraints it operates under (safety), and what it produces (output schema). The same definition runs locally via `agentry run` and generates GitHub Actions pipelines via `agentry ci generate`.
 
 ## Install
 
@@ -10,7 +10,7 @@ Agentry treats agentic workflows as declarative, versionable definitions. A work
 pip install agentry
 ```
 
-Requires Python 3.10+. Docker is optional (required for sandboxed execution).
+Requires Python 3.10+. [Claude Code](https://docs.anthropic.com/en/docs/claude-code) must be installed and authenticated (`claude` on PATH). Docker is optional (required for sandboxed execution).
 
 ## Quick Start
 
@@ -23,12 +23,12 @@ agentry validate workflows/code-review.yaml
 ### 2. Run a workflow locally
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-
 agentry run workflows/triage.yaml \
   --input issue-description="Login fails on Safari" \
   --input repository-ref=.
 ```
+
+Agentry delegates execution to the configured agent runtime (Claude Code by default). The agent runtime handles model selection and API authentication.
 
 ### 3. Generate a GitHub Actions pipeline
 
@@ -60,11 +60,9 @@ tools:
   capabilities:
     - repository:read
 
-model:
-  provider: anthropic
-  model_id: claude-sonnet-4-20250514
-  temperature: 0.2
-  max_tokens: 8192
+agent:
+  runtime: claude-code
+  model: claude-sonnet-4-20250514
   system_prompt: prompts/code-review.md
 
 safety:
@@ -218,14 +216,22 @@ mypy src/agentry/
 
 ## Architecture
 
-Agentry separates concerns into four layers:
+Agentry separates concerns into five layers:
 
 1. **Definition** — Workflow YAML parsed into Pydantic models
 2. **Safety** — SecurityEnvelope enforces trust level, preflight checks, signing
 3. **Resolution** — EnvironmentBinder translates abstract inputs/tools to concrete implementations (LocalBinder, GitHubActionsBinder)
 4. **Execution** — RunnerProtocol provisions isolated environments (DockerRunner, InProcessRunner)
+5. **Agent** — AgentProtocol delegates to a coding agent runtime (ClaudeCodeAgent)
 
-The binder system is pluggable via Python entry points (`agentry.binders` group). Adding a new CI target means implementing the `EnvironmentBinder` protocol — the workflow definition does not change.
+```
+Agentry (orchestration)
+  └→ Runner (execution environment: docker-sandbox, in-process)
+       └→ Agent (coding agent runtime: Claude Code)
+            └→ Model (LLM: Claude)
+```
+
+The binder system is pluggable via Python entry points (`agentry.binders` group). Adding a new CI target means implementing the `EnvironmentBinder` protocol. Adding a new agent runtime means implementing the `AgentProtocol` — the workflow definition only changes the `agent.runtime` field.
 
 ## License
 

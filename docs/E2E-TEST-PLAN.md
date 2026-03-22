@@ -286,6 +286,150 @@ print(isinstance(GitHubActionsBinder.__new__(GitHubActionsBinder), EnvironmentBi
 
 ---
 
+## Phase 5: Agent Runtime
+
+### 5A.1 Agent Registry Discovery
+
+```bash
+uv run python -c "
+from agentry.agents.registry import AgentRegistry
+reg = AgentRegistry.default()
+print(list(reg.list_runtimes()))
+"
+```
+**Expected:** Output includes `"claude-code"`.
+
+### 5A.2 ClaudeCodeAgent Availability
+
+```bash
+uv run python -c "
+from agentry.agents.claude_code import ClaudeCodeAgent
+agent = ClaudeCodeAgent()
+status = agent.check_available()
+print(f'available={status.available}, message={status.message}')
+"
+```
+**Expected (claude installed):** `available=True, message=...`
+**Expected (claude not installed):** `available=False, message=claude binary not found on PATH`
+
+### 5A.3 Workflow Validation with Agent Block
+
+```bash
+uv run agentry validate workflows/code-review.yaml
+```
+**Expected:** Validates successfully with the `agent` block (runtime: claude-code).
+
+### 5A.4 Workflow Validation — Unknown Runtime
+
+```bash
+cat > /tmp/bad-runtime.yaml << 'EOF'
+identity:
+  name: test
+  version: 1.0.0
+  description: test
+agent:
+  runtime: nonexistent-agent
+  model: test
+  system_prompt: test
+inputs: {}
+tools:
+  capabilities: []
+safety:
+  resources:
+    timeout: 60
+output:
+  schema:
+    type: object
+    properties:
+      result:
+        type: string
+EOF
+uv run agentry validate /tmp/bad-runtime.yaml
+```
+**Expected:** Warning or error about unknown runtime `nonexistent-agent`.
+
+### 5A.5 Model Block Backward Compatibility
+
+```bash
+cat > /tmp/model-compat.yaml << 'EOF'
+identity:
+  name: compat-test
+  version: 1.0.0
+  description: test backward compat
+model:
+  provider: anthropic
+  model_id: claude-sonnet-4-20250514
+  temperature: 0.2
+  max_tokens: 4096
+  system_prompt: test
+inputs: {}
+tools:
+  capabilities: []
+safety:
+  resources:
+    timeout: 60
+output:
+  schema:
+    type: object
+    properties:
+      result:
+        type: string
+EOF
+uv run agentry validate /tmp/model-compat.yaml
+```
+**Expected:** Validates successfully — `model` block auto-converts to `agent` block internally.
+
+### 5A.6 AgentProtocol Conformance
+
+```bash
+uv run python -c "
+from agentry.agents.protocol import AgentProtocol
+from agentry.agents.claude_code import ClaudeCodeAgent
+print(isinstance(ClaudeCodeAgent(), AgentProtocol))
+"
+```
+**Expected:** `True`
+
+### 5A.7 RunnerDetector with Agent Resolution
+
+```bash
+uv run python -c "
+from agentry.agents.registry import AgentRegistry
+from agentry.runners.detector import RunnerDetector
+from agentry.models.safety import SafetyBlock
+reg = AgentRegistry.default()
+detector = RunnerDetector(agent_registry=reg, agent_name='claude-code')
+runner = detector.get_runner(SafetyBlock())
+print(type(runner).__name__)
+"
+```
+**Expected:** `InProcessRunner` (elevated trust default).
+
+### 5A.8 SecurityEnvelope — No Executor Parameter
+
+```bash
+uv run python -c "
+import inspect
+from agentry.security.envelope import SecurityEnvelope
+sig = inspect.signature(SecurityEnvelope.__init__)
+params = list(sig.parameters.keys())
+print('executor' not in params)
+"
+```
+**Expected:** `True` — envelope no longer accepts an executor.
+
+### 5A.9 Run Workflow with Agent Runtime
+
+```bash
+uv run agentry run workflows/triage.yaml \
+  --input issue-description="Login fails on Safari" \
+  --input repository-ref=. \
+  --skip-preflight
+```
+**Expected:** Runs using ClaudeCodeAgent (Claude Code CLI). Produces output to `.agentry/runs/<timestamp>/`.
+
+---
+
 ## Cross-Phase Integration
 
 ### 5.1 Full Workflow Lifecycle (Local)
@@ -378,7 +522,7 @@ uv run pytest tests/integration/ -v --tb=short 2>&1 | tail -20
 ```bash
 uv run pytest tests/ -v --tb=short 2>&1 | tail -5
 ```
-**Expected:** ~1478 passed, 3 skipped, 0 failures.
+**Expected:** ~1600+ passed, 0 failures (count increased with Phase 5 agent runtime tests).
 
 ### 6.4 Lint
 
@@ -472,6 +616,15 @@ uv run agentry run workflows/planning-pipeline.yaml \
 | 4.9 | Binder auto-detection | 4 | | |
 | 4.10 | Binder registry | 4 | | |
 | 4.11 | Protocol conformance | 4 | | |
+| 5A.1 | Agent registry discovery | 5 | | |
+| 5A.2 | ClaudeCodeAgent availability | 5 | | |
+| 5A.3 | Validate with agent block | 5 | | |
+| 5A.4 | Unknown runtime validation | 5 | | |
+| 5A.5 | Model block backward compat | 5 | | |
+| 5A.6 | AgentProtocol conformance | 5 | | |
+| 5A.7 | RunnerDetector agent resolution | 5 | | |
+| 5A.8 | Envelope no executor | 5 | | |
+| 5A.9 | Run with agent runtime | 5 | | |
 | 5.1 | Full local lifecycle | X | | |
 | 5.2 | Full CI lifecycle | X | | |
 | 5.3 | Composed → individual CI | X | | |
