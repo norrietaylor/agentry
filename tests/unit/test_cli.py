@@ -13,10 +13,16 @@ import json
 import sys
 import types
 
-import pytest  # noqa: F401
+import pytest
 from click.testing import CliRunner
 
 from agentry.cli import cli, main
+
+
+@pytest.fixture(autouse=True)
+def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent GITHUB_ACTIONS env var from triggering github-actions binder."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
 
 def test_cli_help() -> None:
@@ -69,11 +75,15 @@ def test_run_command_missing_file() -> None:
 
 def test_run_command_valid_yaml() -> None:
     """Test the run subcommand with a valid YAML file."""
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     with runner.isolated_filesystem():
         with open("test.yaml", "w") as f:
             f.write("version: 1\nname: test\n")
-        result = runner.invoke(main, ["--output-format", "text", "run", "test.yaml"])
+        result = runner.invoke(
+            main,
+            ["--output-format", "text", "run", "test.yaml", "--skip-preflight"],
+            env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
+        )
         assert result.exit_code == 0
         assert "Running workflow" in result.output
 
@@ -140,10 +150,10 @@ def test_setup_requires_workflow_path() -> None:
 
 
 def test_ci_group_shows_help() -> None:
-    """agentry ci (without subcommand) must show help and exit 0."""
+    """agentry ci (without subcommand) must show help."""
     runner = CliRunner()
     result = runner.invoke(cli, ["ci"])
-    assert result.exit_code == 0
+    assert result.exit_code in (0, 2)  # Click 8.2+ returns 2 for missing subcommand
     assert "generate" in result.output
 
 
@@ -283,7 +293,11 @@ def test_run_target_option(tmp_path: "pytest.TempPathFactory") -> None:  # type:
     wf = tmp_path / "w.yaml"  # type: ignore[operator]
     wf.write_text("name: test\n")  # type: ignore[union-attr]
     runner = CliRunner()
-    result = runner.invoke(cli, ["--output-format", "text", "run", str(wf), "--target", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        ["--output-format", "text", "run", str(wf), "--target", str(tmp_path)],
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
+    )
     assert result.exit_code in (0, 1)
 
 
@@ -292,7 +306,11 @@ def test_run_stub_text_output(tmp_path: "pytest.TempPathFactory") -> None:  # ty
     wf = tmp_path / "w.yaml"  # type: ignore[operator]
     wf.write_text("name: test\n")  # type: ignore[union-attr]
     runner = CliRunner()
-    result = runner.invoke(cli, ["--output-format", "text", "run", str(wf), "--input", "diff=HEAD~1"])
+    result = runner.invoke(
+        cli,
+        ["--output-format", "text", "run", str(wf), "--input", "diff=HEAD~1", "--skip-preflight"],
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
+    )
     assert result.exit_code == 0
     assert "Running workflow" in result.output
 
@@ -486,7 +504,7 @@ def test_run_skip_preflight_bypasses_checks(tmp_path: "pytest.TempPathFactory") 
     """agentry run --skip-preflight must bypass preflight checks even without API key."""
     wf = tmp_path / "workflow.yaml"  # type: ignore[operator]
     wf.write_text(_SETUP_WORKFLOW_YAML)  # type: ignore[union-attr]
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     # Note: missing ANTHROPIC_API_KEY would normally cause preflight to fail
     result = runner.invoke(
         cli,
@@ -508,7 +526,7 @@ def test_run_without_skip_preflight_requires_api_key(tmp_path: "pytest.TempPathF
     """agentry run without --skip-preflight must check for API key."""
     wf = tmp_path / "workflow.yaml"  # type: ignore[operator]
     wf.write_text(_SETUP_WORKFLOW_YAML)  # type: ignore[union-attr]
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(
         cli,
         [

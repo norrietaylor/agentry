@@ -31,6 +31,13 @@ from agentry.output import (
     emit,
 )
 
+
+@pytest.fixture(autouse=True)
+def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent GITHUB_ACTIONS env var from triggering github-actions binder."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -380,7 +387,9 @@ def test_cli_run_json_output_no_executor(tmp_path: pytest.TempPathFactory) -> No
     wf.write_text("name: test\n")
     runner = CliRunner()
     result = runner.invoke(
-        main, ["--output-format", "json", "run", str(wf), "--input", "k=v"]
+        main,
+        ["--output-format", "json", "run", str(wf), "--input", "k=v", "--skip-preflight"],
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -392,9 +401,11 @@ def test_cli_run_text_output_no_executor(tmp_path: pytest.TempPathFactory) -> No
     """run --output-format text emits human-readable output."""
     wf = tmp_path / "w.yaml"
     wf.write_text("name: test\n")
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(
-        main, ["--output-format", "text", "run", str(wf)]
+        main,
+        ["--output-format", "text", "run", str(wf), "--skip-preflight"],
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
     )
     assert result.exit_code == 0
     assert "Running workflow" in result.output or str(wf) in result.output
