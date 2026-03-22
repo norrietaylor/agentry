@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from typing import Any
 
 import click
 
@@ -38,14 +39,14 @@ class _MinimalRunner:
     sandbox provisioning only happens when ``agentry run`` is invoked.
     """
 
-    def provision(self) -> dict:
+    def provision(self) -> dict[str, Any]:
         """Return empty metadata — no real provisioning is performed."""
         return {}
 
     def teardown(self) -> None:
         """No-op teardown."""
 
-    def execute(self, command: str, timeout: float | None = None) -> dict:
+    def execute(self, command: str, timeout: float | None = None) -> dict[str, Any]:
         """Not used during setup-only execution."""
         return {"exit_code": 0, "stdout": "", "stderr": ""}
 
@@ -319,7 +320,7 @@ def validate(ctx: click.Context, workflow_paths: tuple[str, ...], security_audit
         # Parser not yet implemented — report the YAML is loadable at minimum.
         logger.debug("Parser module not available; performing basic YAML load check.")
         try:
-            import yaml  # type: ignore[import-untyped]
+            import yaml
 
             with open(workflow_path) as fh:
                 yaml.safe_load(fh)
@@ -522,7 +523,7 @@ def run(
 
         _api_key = os.environ.get("ANTHROPIC_API_KEY", "")
 
-        _checks = []
+        _checks: list[Any] = []
         if not skip_preflight:
             _checks = [
                 AnthropicAPIKeyCheck(),
@@ -611,7 +612,7 @@ def run(
                 _agent_runtime = _loaded_workflow.agent.runtime
 
             # Build agent kwargs from the agent block when available.
-            _agent_kwargs: dict = {}
+            _agent_kwargs: dict[str, Any] = {}
             if _loaded_workflow.agent is not None:
                 if _loaded_workflow.agent.model:
                     _agent_kwargs["model"] = _loaded_workflow.agent.model
@@ -715,24 +716,168 @@ def run(
         return
 
     # Single-workflow execution via Runner → Agent pipeline.
-    if output_format == OutputFormat.JSON:
-        import json
+    try:
+        if _loaded_workflow is None:
+            raise ImportError("Workflow not loaded")
+        from pathlib import Path
 
-        stub: dict[str, object] = {
-            "status": "not_implemented",
-            "mode": "single",
-            "workflow": workflow_path,
-            "inputs": parsed_inputs,
-            "target": target,
+        from agentry.agents.registry import AgentRegistry
+        from agentry.runners.detector import RunnerDetector
+        from agentry.security.checks import (
+            AgentAvailabilityCheck,
+            AnthropicAPIKeyCheck,
+            DockerAvailableCheck,
+            FilesystemMountsCheck,
+            GitHubTokenScopeCheck,
+        )
+        from agentry.security.envelope import EnvelopeResult, SecurityEnvelope
+
+        # 1. Resolve agent runtime from workflow's agent block.
+        _agent_runtime = "claude-code"
+        if _loaded_workflow.agent is not None:
+            _agent_runtime = _loaded_workflow.agent.runtime
+
+        # 2. Build agent kwargs from the agent block.
+        _agent_kwargs: dict[str, Any] = {}
+        if _loaded_workflow.agent is not None:
+            if _loaded_workflow.agent.model:
+                _agent_kwargs["model"] = _loaded_workflow.agent.model
+            if _loaded_workflow.agent.max_iterations is not None:
+                _agent_kwargs["max_iterations"] = _loaded_workflow.agent.max_iterations
+
+        # 3. Instantiate RunnerDetector and get runner.
+        _registry = AgentRegistry.default()
+        _detector = RunnerDetector(
+            agent_registry=_registry,
+            agent_name=_agent_runtime,
+            agent_kwargs=_agent_kwargs,
+        )
+        _runner = _detector.get_runner(_loaded_workflow.safety)
+
+        # 4. Build preflight checks (respecting --skip-preflight).
+        _envelope_checks: list[Any] = []
+        if not skip_preflight:
+            _envelope_checks = [
+                AnthropicAPIKeyCheck(),
+                DockerAvailableCheck(trust=_loaded_workflow.safety.trust.value),
+                FilesystemMountsCheck(
+                    read_paths=list(_loaded_workflow.safety.filesystem.read),
+                    write_paths=list(_loaded_workflow.safety.filesystem.write),
+                ),
+            ]
+            if _loaded_workflow.agent is not None:
+                _envelope_checks.append(
+                    AgentAvailabilityCheck(runtime=_loaded_workflow.agent.runtime)
+                )
+            if _binder_name == "github-actions":
+                _tool_declarations = list(_loaded_workflow.tools.capabilities)
+                _github_repository = os.environ.get("GITHUB_REPOSITORY", "")
+                _envelope_checks.append(
+                    GitHubTokenScopeCheck(
+                        tool_declarations=_tool_declarations,
+                        github_repository=_github_repository,
+                    )
+                )
+
+        # 5. Instantiate SecurityEnvelope.
+        _envelope = SecurityEnvelope(
+            workflow=_loaded_workflow,
+            runner=_runner,
+            preflight_checks=_envelope_checks,
+        )
+
+        # 6. Resolve inputs via binder.
+        _input_declarations: dict[str, Any] = {
+            name: spec.model_dump() for name, spec in _loaded_workflow.inputs.items()
         }
-        click.echo(json.dumps(stub))
-    else:
-        click.echo(f"Running workflow: {workflow_path}")
-        click.echo(f"Target: {target}")
-        if parsed_inputs:
-            for k, v in parsed_inputs.items():
-                click.echo(f"  Input {k}={v}")
-        click.echo("(Single-workflow execution not yet wired to Runner/Agent pipeline)")
+        _resolved_inputs = _active_binder.resolve_inputs(
+            _input_declarations, parsed_inputs
+        )
+
+        # 7. Bind tools via binder.
+        _tool_bindings = _active_binder.bind_tools(
+            list(_loaded_workflow.tools.capabilities)
+        )
+
+        # 8. Load system prompt from file or build fallback.
+        _system_prompt = ""
+        if _loaded_workflow.agent is not None and _loaded_workflow.agent.system_prompt:
+            _prompt_path = Path(workflow_path).parent / _loaded_workflow.agent.system_prompt
+            if _prompt_path.exists():
+                _system_prompt = _prompt_path.read_text(encoding="utf-8")
+        if not _system_prompt:
+            _identity = _loaded_workflow.identity
+            _system_prompt = f"You are {_identity.name}. {_identity.description}"
+
+        # 9. Execute through the envelope.
+        _envelope_result: EnvelopeResult = _envelope.execute(
+            system_prompt=_system_prompt,
+            resolved_inputs=_resolved_inputs,
+            available_tools=list(_tool_bindings.keys()),
+            agent_name=_agent_runtime,
+            agent_config=_agent_kwargs,
+        )
+
+        # 10. Handle the result.
+        if _envelope_result.aborted or _envelope_result.envelope_error:
+            _error_msg = _envelope_result.envelope_error or "Execution aborted."
+            click.echo(f"Error: {_error_msg}", err=True)
+            sys.exit(1)
+
+        _exec_result = _envelope_result.execution_result
+        if _exec_result is not None and _exec_result.error:
+            click.echo(f"Error: agent execution failed: {_exec_result.error}", err=True)
+            sys.exit(1)
+
+        # 11. Emit output.
+        if output_format == OutputFormat.JSON:
+            import json
+
+            _output_payload: dict[str, object] = {
+                "status": "success",
+                "output": _exec_result.output if _exec_result else None,
+                "token_usage": _exec_result.token_usage if _exec_result else {},
+            }
+            click.echo(json.dumps(_output_payload))
+        else:
+            click.echo(f"Workflow: {workflow_path}")
+            if _exec_result and _exec_result.output:
+                click.echo(f"Output: {_exec_result.output}")
+            elif _exec_result:
+                click.echo("Execution completed (no structured output).")
+            else:
+                click.echo("Execution completed.")
+            if _exec_result and _exec_result.token_usage:
+                _usage = _exec_result.token_usage
+                click.echo(
+                    f"Tokens: input={_usage.get('input', 0)}, "
+                    f"output={_usage.get('output', 0)}"
+                )
+
+    except ImportError:
+        # Pipeline components not yet available — emit a stub response.
+        logger.debug("Pipeline components not available; emitting stub output.")
+        if output_format == OutputFormat.JSON:
+            import json
+
+            single_stub: dict[str, object] = {
+                "status": "not_implemented",
+                "mode": "single",
+                "workflow": workflow_path,
+                "inputs": parsed_inputs,
+                "target": target,
+            }
+            click.echo(json.dumps(single_stub))
+        else:
+            click.echo(f"Running workflow: {workflow_path}")
+            click.echo(f"Target: {target}")
+            if parsed_inputs:
+                for k, v in parsed_inputs.items():
+                    click.echo(f"  Input {k}={v}")
+            click.echo("(Single-workflow execution not yet wired to Runner/Agent pipeline)")
+    except Exception as exc:  # noqa: BLE001
+        click.echo(f"Error: execution failed: {exc}", err=True)
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------------
@@ -802,8 +947,7 @@ def setup(
         DockerAvailableCheck,
         FilesystemMountsCheck,
     )
-
-    checks = []
+    checks: list[Any] = []
     if not skip_preflight:
         checks = [
             AnthropicAPIKeyCheck(),

@@ -20,14 +20,14 @@ from agentry.binders.exceptions import (
 )
 
 # Tools supported by the local binder.
-SUPPORTED_TOOLS = frozenset({"repository:read", "shell:execute"})
+SUPPORTED_TOOLS = frozenset({"repository:read", "shell:execute", "pr:create"})
 
 # Allowlist of permitted executable names for shell:execute.
 _SHELL_ALLOWLIST: frozenset[str] = frozenset(
     {"git", "ls", "find", "grep", "cat", "head", "tail", "wc"}
 )
 
-# For git, only these sub-commands are allowed.
+# For git, only these sub-commands are allowed (for the shell:execute tool).
 _GIT_SUBCOMMAND_ALLOWLIST: frozenset[str] = frozenset(
     {"log", "diff", "show", "blame"}
 )
@@ -158,6 +158,8 @@ class LocalBinder:
                 bindings[tool_name] = _make_repository_read()
             elif tool_name == "shell:execute":
                 bindings[tool_name] = _make_shell_execute()
+            elif tool_name == "pr:create":
+                bindings[tool_name] = _make_pr_create()
         return bindings
 
     def map_outputs(
@@ -386,3 +388,117 @@ def _make_shell_execute() -> Any:
 
     shell_execute.__name__ = "shell_execute"
     return shell_execute
+
+
+# Branch names that must never be pushed to directly.
+_PROTECTED_BRANCHES: frozenset[str] = frozenset({"main", "master"})
+
+
+def _make_pr_create() -> Any:
+    """Return a callable implementing the ``pr:create`` tool.
+
+    The returned function creates a branch, commits staged changes, pushes
+    to origin, and opens a pull request via the ``gh`` CLI.  It enforces
+    safety guardrails: no force-push, no push to protected branches, and
+    no auto-merge.
+
+    The callable signature is::
+
+        def pr_create(
+            *,
+            branch_name: str,
+            commit_message: str,
+            base_branch: str = "main",
+            title: str,
+            body: str,
+            label: str = "agent-proposed",
+            files: list[str] | None = None,
+            cwd: str | None = None,
+        ) -> dict[str, Any]: ...
+
+    Returns:
+        A dict with ``branch``, ``pr_url``, and ``status`` keys on success,
+        or ``branch``, ``error``, and ``status`` keys on failure.
+
+    Raises:
+        ValueError: If *branch_name* matches a protected branch name.
+    """
+
+    def pr_create(
+        *,
+        branch_name: str,
+        commit_message: str,
+        base_branch: str = "main",
+        title: str,
+        body: str,
+        label: str = "agent-proposed",
+        files: list[str] | None = None,
+        cwd: str | None = None,
+    ) -> dict[str, Any]:
+        # Guard: never push to a protected branch.
+        if branch_name in _PROTECTED_BRANCHES:
+            raise ValueError(
+                f"Cannot create a PR from protected branch {branch_name!r}. "
+                "Use a feature branch name instead."
+            )
+
+        work_dir = cwd or os.getcwd()
+
+        def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                cmd,
+                cwd=work_dir,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+        try:
+            # 1. Create a new branch from base_branch.
+            _run(["git", "checkout", "-b", branch_name, base_branch])
+
+            # 2. Stage files.
+            if files is not None:
+                _run(["git", "add", *files])
+            else:
+                _run(["git", "add", "-A"])
+
+            # 3. Commit.
+            _run(["git", "commit", "-m", commit_message])
+
+            # 4. Push (never force-push).
+            _run(["git", "push", "-u", "origin", branch_name])
+
+            # 5. Open PR via gh CLI (never auto-merge).
+            gh_result = _run(
+                [
+                    "gh",
+                    "pr",
+                    "create",
+                    "--base",
+                    base_branch,
+                    "--title",
+                    title,
+                    "--body",
+                    body,
+                    "--label",
+                    label,
+                ]
+            )
+
+            pr_url = gh_result.stdout.strip()
+            return {
+                "branch": branch_name,
+                "pr_url": pr_url,
+                "status": "created",
+            }
+
+        except subprocess.CalledProcessError as exc:
+            return {
+                "branch": branch_name,
+                "error": (exc.stderr or exc.stdout or str(exc)).strip(),
+                "status": "failed",
+            }
+
+    pr_create.__name__ = "pr_create"
+    return pr_create
