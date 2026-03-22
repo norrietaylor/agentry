@@ -73,7 +73,11 @@ def test_run_command_valid_yaml() -> None:
     with runner.isolated_filesystem():
         with open("test.yaml", "w") as f:
             f.write("version: 1\nname: test\n")
-        result = runner.invoke(main, ["--output-format", "text", "run", "test.yaml", "--skip-preflight"])
+        result = runner.invoke(
+            main,
+            ["--output-format", "text", "run", "test.yaml", "--skip-preflight"],
+            env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
+        )
         assert result.exit_code == 0
         assert "Running workflow" in result.output
 
@@ -283,7 +287,11 @@ def test_run_target_option(tmp_path: "pytest.TempPathFactory") -> None:  # type:
     wf = tmp_path / "w.yaml"  # type: ignore[operator]
     wf.write_text("name: test\n")  # type: ignore[union-attr]
     runner = CliRunner()
-    result = runner.invoke(cli, ["--output-format", "text", "run", str(wf), "--target", str(tmp_path)])
+    result = runner.invoke(
+        cli,
+        ["--output-format", "text", "run", str(wf), "--target", str(tmp_path)],
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
+    )
     assert result.exit_code in (0, 1)
 
 
@@ -292,7 +300,11 @@ def test_run_stub_text_output(tmp_path: "pytest.TempPathFactory") -> None:  # ty
     wf = tmp_path / "w.yaml"  # type: ignore[operator]
     wf.write_text("name: test\n")  # type: ignore[union-attr]
     runner = CliRunner()
-    result = runner.invoke(cli, ["--output-format", "text", "run", str(wf), "--input", "diff=HEAD~1", "--skip-preflight"])
+    result = runner.invoke(
+        cli,
+        ["--output-format", "text", "run", str(wf), "--input", "diff=HEAD~1", "--skip-preflight"],
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
+    )
     assert result.exit_code == 0
     assert "Running workflow" in result.output
 

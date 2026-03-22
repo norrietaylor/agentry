@@ -380,7 +380,9 @@ def test_cli_run_json_output_no_executor(tmp_path: pytest.TempPathFactory) -> No
     wf.write_text("name: test\n")
     runner = CliRunner()
     result = runner.invoke(
-        main, ["--output-format", "json", "run", str(wf), "--input", "k=v", "--skip-preflight"]
+        main,
+        ["--output-format", "json", "run", str(wf), "--input", "k=v", "--skip-preflight"],
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
     )
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -394,7 +396,9 @@ def test_cli_run_text_output_no_executor(tmp_path: pytest.TempPathFactory) -> No
     wf.write_text("name: test\n")
     runner = CliRunner()
     result = runner.invoke(
-        main, ["--output-format", "text", "run", str(wf), "--skip-preflight"]
+        main,
+        ["--output-format", "text", "run", str(wf), "--skip-preflight"],
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
     )
     assert result.exit_code == 0
     assert "Running workflow" in result.output or str(wf) in result.output
