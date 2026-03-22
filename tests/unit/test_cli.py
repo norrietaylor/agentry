@@ -140,10 +140,10 @@ def test_setup_requires_workflow_path() -> None:
 
 
 def test_ci_group_shows_help() -> None:
-    """agentry ci (without subcommand) must show help and exit 0."""
+    """agentry ci (without subcommand) must show help."""
     runner = CliRunner()
     result = runner.invoke(cli, ["ci"])
-    assert result.exit_code == 0
+    assert result.exit_code in (0, 2)  # Click 8.2+ returns 2 for missing subcommand
     assert "generate" in result.output
 
 
