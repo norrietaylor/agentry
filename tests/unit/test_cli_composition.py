@@ -15,6 +15,7 @@ CompositionEngine is mocked to return a canned CompositionRecord.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,6 +24,12 @@ from click.testing import CliRunner
 
 from agentry.cli import main
 from agentry.composition.record import CompositionRecord, CompositionStatus, NodeStatus
+
+
+@pytest.fixture(autouse=True)
+def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent GITHUB_ACTIONS env var from triggering github-actions binder."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +124,7 @@ def test_composition_detection_calls_engine(tmp_path: Path) -> None:
     # Also write the referenced sub-workflow so the test file exists
     (tmp_path / "triage.yaml").write_text(_SINGLE_AGENT_WORKFLOW_YAML)
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     canned = _make_canned_record()
     mock_engine_instance = MagicMock()
@@ -134,7 +141,7 @@ def test_composition_detection_calls_engine(tmp_path: Path) -> None:
                 str(wf),
                 "--skip-preflight",
             ],
-            env={"ANTHROPIC_API_KEY": ""},
+            env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
             catch_exceptions=False,
         )
 
@@ -154,7 +161,7 @@ def test_single_agent_fallback_uses_executor(tmp_path: Path) -> None:
     wf = tmp_path / "code-review.yaml"
     wf.write_text(_SINGLE_AGENT_WORKFLOW_YAML)
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     # The existing stub executor path is triggered when agentry.executor is absent.
     # We confirm CompositionEngine is NOT instantiated.
@@ -167,7 +174,7 @@ def test_single_agent_fallback_uses_executor(tmp_path: Path) -> None:
                 str(wf),
                 "--skip-preflight",
             ],
-            env={"ANTHROPIC_API_KEY": ""},
+            env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
             catch_exceptions=False,
         )
 
@@ -188,7 +195,7 @@ def test_node_flag_with_composition_isolates_node(tmp_path: Path) -> None:
     wf.write_text(_COMPOSITION_WORKFLOW_YAML)
     (tmp_path / "triage.yaml").write_text(_SINGLE_AGENT_WORKFLOW_YAML)
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     single_node_record = CompositionRecord(
         node_statuses={"triage": NodeStatus.COMPLETED},
@@ -212,7 +219,7 @@ def test_node_flag_with_composition_isolates_node(tmp_path: Path) -> None:
                 "--node", "triage",
                 "--skip-preflight",
             ],
-            env={"ANTHROPIC_API_KEY": ""},
+            env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
             catch_exceptions=False,
         )
 
@@ -243,7 +250,7 @@ def test_node_flag_without_composition_emits_error(tmp_path: Path) -> None:
     wf = tmp_path / "code-review.yaml"
     wf.write_text(_SINGLE_AGENT_WORKFLOW_YAML)
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     result = runner.invoke(
         main,
@@ -254,12 +261,12 @@ def test_node_flag_without_composition_emits_error(tmp_path: Path) -> None:
             "--node", "nonexistent",
             "--skip-preflight",
         ],
-        env={"ANTHROPIC_API_KEY": ""},
+        env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
     )
 
     assert result.exit_code != 0
     # Error message must mention --node flag and composition
-    combined = result.output + (result.stderr if hasattr(result, "stderr") else "")
+    combined = result.output
     assert "--node" in combined or "composition" in combined.lower()
 
 
@@ -274,7 +281,7 @@ def test_json_output_format_contains_composition_record_fields(tmp_path: Path) -
     wf.write_text(_COMPOSITION_WORKFLOW_YAML)
     (tmp_path / "triage.yaml").write_text(_SINGLE_AGENT_WORKFLOW_YAML)
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     canned = _make_canned_record()
     mock_engine_instance = MagicMock()
@@ -289,7 +296,7 @@ def test_json_output_format_contains_composition_record_fields(tmp_path: Path) -
                 str(wf),
                 "--skip-preflight",
             ],
-            env={"ANTHROPIC_API_KEY": ""},
+            env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
             catch_exceptions=False,
         )
 
@@ -323,7 +330,7 @@ def test_text_output_format_contains_per_node_status(tmp_path: Path) -> None:
     wf.write_text(_COMPOSITION_WORKFLOW_YAML)
     (tmp_path / "triage.yaml").write_text(_SINGLE_AGENT_WORKFLOW_YAML)
 
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
 
     canned = _make_canned_record()
     mock_engine_instance = MagicMock()
@@ -338,7 +345,7 @@ def test_text_output_format_contains_per_node_status(tmp_path: Path) -> None:
                 str(wf),
                 "--skip-preflight",
             ],
-            env={"ANTHROPIC_API_KEY": ""},
+            env={"ANTHROPIC_API_KEY": "", "GITHUB_ACTIONS": ""},
             catch_exceptions=False,
         )
 

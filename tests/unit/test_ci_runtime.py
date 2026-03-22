@@ -162,7 +162,7 @@ class TestBinderAutoDetection:
                 captured_binder_name.append(name)
             return original_get_binder(name)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         with patch("agentry.binders.registry.get_binder", side_effect=spy_get_binder):
             runner.invoke(
                 cli,
@@ -195,7 +195,7 @@ class TestBinderAutoDetection:
                 captured_binder_name.append(name)
             return original_get_binder(name)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         with patch("agentry.binders.registry.get_binder", side_effect=spy_get_binder):
             runner.invoke(
                 cli,
@@ -229,7 +229,7 @@ class TestBinderAutoDetection:
                 captured_binder_name.append(name)
             return original_get_binder(name)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         with patch("agentry.binders.registry.get_binder", side_effect=spy_get_binder):
             runner.invoke(
                 cli,
@@ -269,7 +269,7 @@ class TestBinderOverrideFlag:
                 captured_binder_name.append(name)
             return original_get_binder(name)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         with patch("agentry.binders.registry.get_binder", side_effect=spy_get_binder):
             runner.invoke(
                 cli,
@@ -300,7 +300,7 @@ class TestBinderOverrideFlag:
                 captured_binder_name.append(name)
             return original_get_binder(name)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         with patch("agentry.binders.registry.get_binder", side_effect=spy_get_binder):
             runner.invoke(
                 cli,
@@ -352,7 +352,7 @@ class TestPreflightWiring:
             mock.run.return_value = mock_result
             return mock
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         with patch("agentry.security.setup.SetupPhase", side_effect=spy_setup_phase):
             runner.invoke(
                 cli,
@@ -387,7 +387,7 @@ class TestPreflightWiring:
         }
         monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-        runner = CliRunner(mix_stderr=False)
+        runner = CliRunner()
         with patch("agentry.security.setup.SetupPhase", side_effect=spy_setup_phase):
             runner.invoke(
                 cli,
