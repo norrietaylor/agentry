@@ -1,0 +1,13 @@
+Type: file
+Check: workflows/code-review.yaml contains agent block with runtime "claude-code"
+Expected: File has "agent:" key and "runtime: claude-code"
+Timestamp: 2026-03-21T00:00:00Z
+
+FILE CONTENT (relevant excerpt):
+agent:
+  runtime: claude-code
+  model: claude-sonnet-4-20250514
+  system_prompt: prompts/code-review.md
+  max_iterations: 20
+
+Status: PASS

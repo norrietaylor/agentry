@@ -1,6 +1,6 @@
 """Concrete preflight check implementations.
 
-Provides four concrete preflight checks:
+Provides five concrete preflight checks:
 
 1. ``AnthropicAPIKeyCheck`` — verifies the ``ANTHROPIC_API_KEY`` environment
    variable is set and the key is accepted by the Anthropic API (GET
@@ -12,6 +12,8 @@ Provides four concrete preflight checks:
    host before container mount.
 4. ``GitHubTokenScopeCheck`` — verifies that ``GITHUB_TOKEN`` has the
    required scopes for the declared tools when running in GitHub Actions CI.
+5. ``AgentAvailabilityCheck`` — verifies that the binary required by the
+   selected agent runtime is present on ``PATH``.
 
 Each class satisfies the
 :class:`~agentry.security.envelope.PreflightCheck` protocol::
@@ -621,5 +623,78 @@ class GitHubTokenScopeCheck:
                 "Add `permissions: pull-requests: write` to your GitHub "
                 "Actions workflow YAML, for example:\n"
                 + "\n".join(remediation_lines)
+            ),
+        )
+
+
+# ---------------------------------------------------------------------------
+# AgentAvailabilityCheck
+# ---------------------------------------------------------------------------
+
+# Maps agent runtime names to the binary that must be present on PATH.
+_RUNTIME_BINARY: dict[str, str] = {
+    "claude-code": "claude",
+}
+
+
+class AgentAvailabilityCheck:
+    """Preflight check that verifies the required agent binary is on PATH.
+
+    For each known agent runtime a specific binary is required:
+
+    - ``claude-code`` → ``claude``
+
+    For unknown runtimes the check always passes (no assumption can be made
+    about what binary is needed).
+
+    Args:
+        runtime: The agent runtime identifier from the workflow's agent block
+            (e.g. ``"claude-code"``).
+    """
+
+    def __init__(self, runtime: str) -> None:
+        self._runtime = runtime
+
+    @property
+    def name(self) -> str:
+        """Name of this preflight check."""
+        return "agent_availability"
+
+    def run(self) -> _CheckResult:
+        """Check that the required binary is available on PATH.
+
+        Returns:
+            :class:`_CheckResult` with ``passed=True`` when the binary is
+            found or the runtime is unknown, or a descriptive failure when
+            the binary is missing.
+        """
+        binary = _RUNTIME_BINARY.get(self._runtime)
+        if binary is None:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message=(
+                    f"Unknown agent runtime '{self._runtime}'; "
+                    "skipping binary availability check."
+                ),
+            )
+
+        if shutil.which(binary) is not None:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message=f"Agent binary '{binary}' found for runtime '{self._runtime}'.",
+            )
+
+        return _CheckResult(
+            passed=False,
+            name=self.name,
+            message=(
+                f"Agent binary '{binary}' is required for the '{self._runtime}' runtime "
+                "but was not found on PATH."
+            ),
+            remediation=(
+                f"Install the '{binary}' binary and ensure it is on your PATH. "
+                "See https://docs.anthropic.com/en/docs/claude-code for installation instructions."
             ),
         )

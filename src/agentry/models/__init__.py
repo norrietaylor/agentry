@@ -1,7 +1,7 @@
 """Workflow definition models.
 
 Pydantic v2 models for the seven workflow definition blocks:
-identity, inputs, tools, model, safety, output, and composition.
+identity, inputs, tools, model, agent, safety, output, and composition.
 
 Public API
 ----------
@@ -12,6 +12,7 @@ Public API
 - :class:`~agentry.models.inputs.DocumentRefInput` -- Document-ref input type.
 - :class:`~agentry.models.tools.ToolsBlock` -- Tool capability declarations.
 - :class:`~agentry.models.model.ModelBlock` -- LLM provider configuration.
+- :class:`~agentry.models.agent.AgentBlock` -- Agent runtime configuration.
 - :class:`~agentry.models.safety.SafetyBlock` -- Resource constraints and sandbox config.
 - :class:`~agentry.models.safety.FilesystemConfig` -- Filesystem access patterns.
 - :class:`~agentry.models.safety.NetworkConfig` -- Network allow-list.
@@ -21,6 +22,7 @@ Public API
 - :class:`~agentry.models.composition.CompositionBlock` -- Multi-agent composition (parsed only).
 """
 
+from agentry.models.agent import KNOWN_RUNTIMES, AgentBlock
 from agentry.models.composition import CompositionBlock, CompositionStep
 from agentry.models.identity import IdentityBlock
 from agentry.models.inputs import (
@@ -43,6 +45,7 @@ from agentry.models.tools import ToolsBlock
 from agentry.models.workflow import WorkflowDefinition
 
 __all__ = [
+    "AgentBlock",
     "BudgetConfig",
     "CompositionBlock",
     "CompositionStep",
@@ -51,6 +54,7 @@ __all__ = [
     "GitDiffInput",
     "IdentityBlock",
     "InputType",
+    "KNOWN_RUNTIMES",
     "ModelBlock",
     "NetworkConfig",
     "OutputBlock",

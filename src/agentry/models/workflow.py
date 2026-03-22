@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from agentry.models.agent import AgentBlock
 from agentry.models.composition import CompositionBlock
 from agentry.models.identity import IdentityBlock
 from agentry.models.inputs import InputType
@@ -55,9 +56,27 @@ class WorkflowDefinition(BaseModel):
     inputs: dict[str, InputType] = Field(default_factory=dict)
     tools: ToolsBlock = ToolsBlock()
     model: ModelBlock = ModelBlock()
+    agent: AgentBlock | None = None
     safety: SafetyBlock = SafetyBlock()
     output: OutputBlock = OutputBlock()
     composition: CompositionBlock = CompositionBlock()
+
+    @model_validator(mode="after")
+    def _backfill_agent_from_model(self) -> WorkflowDefinition:
+        """If no agent block is present, auto-convert the model block to an AgentBlock.
+
+        The ``model`` block is treated as a deprecated alias for ``agent``.
+        When both are supplied the explicit ``agent`` block takes precedence
+        and the ``model`` block is ignored.
+        """
+        if self.agent is None:
+            # Build an AgentBlock from the model block fields.
+            self.agent = AgentBlock(
+                runtime="claude-code",
+                model=self.model.model_id,
+                system_prompt=self.model.system_prompt,
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_variable_references(self) -> WorkflowDefinition:

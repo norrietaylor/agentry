@@ -289,6 +289,28 @@ def validate(ctx: click.Context, workflow_paths: tuple[str, ...], security_audit
                 click.echo(f"Error: {err}", err=True)
             sys.exit(1)
         else:
+            # Additional semantic checks: report unknown agent runtimes.
+            # This is best-effort; any failure here is silently ignored so
+            # that stub implementations of the parser still work.
+            _extra_warnings: list[str] = []
+            try:
+                from agentry.models.agent import KNOWN_RUNTIMES
+                from agentry.parser import load_workflow_file
+
+                _wf = load_workflow_file(workflow_path)
+                if _wf.agent is not None and _wf.agent.runtime not in KNOWN_RUNTIMES:
+                    _extra_warnings.append(
+                        f"Warning: unknown agent runtime '{_wf.agent.runtime}'. "
+                        f"Known runtimes: {', '.join(sorted(KNOWN_RUNTIMES))}."
+                    )
+            except Exception:  # noqa: BLE001
+                pass  # best-effort only; schema errors already caught above
+
+            if _extra_warnings:
+                for w in _extra_warnings:
+                    click.echo(w, err=True)
+                sys.exit(1)
+
             if output_format == OutputFormat.JSON:
                 click.echo(json.dumps({"status": "valid", "path": workflow_path}))
             else:
@@ -487,6 +509,7 @@ def run(
     # the setup manifest regardless of trust level.
     try:
         from agentry.security.checks import (
+            AgentAvailabilityCheck,
             AnthropicAPIKeyCheck,
             DockerAvailableCheck,
             FilesystemMountsCheck,
@@ -509,6 +532,9 @@ def run(
                     write_paths=list(_loaded_workflow.safety.filesystem.write),
                 ),
             ]
+            # Add agent availability check when the workflow has an agent block.
+            if _loaded_workflow.agent is not None:
+                _checks.append(AgentAvailabilityCheck(runtime=_loaded_workflow.agent.runtime))
             # When running in GitHub Actions, add a token scope preflight check.
             if _binder_name == "github-actions":
                 _tool_declarations = list(_loaded_workflow.tools.capabilities)
@@ -573,11 +599,33 @@ def run(
         assert _loaded_workflow is not None  # guaranteed by _is_composition check
 
         try:
+            from agentry.agents.registry import AgentRegistry
             from agentry.composition.display import CompositionDisplay
             from agentry.composition.engine import CompositionEngine
             from agentry.runners.detector import RunnerDetector
 
-            _detector = RunnerDetector(llm_client=None)
+            # Resolve agent runtime from workflow's agent block (or fall back
+            # to the default "claude-code").
+            _agent_runtime = "claude-code"
+            if _loaded_workflow.agent is not None:
+                _agent_runtime = _loaded_workflow.agent.runtime
+
+            # Build agent kwargs from the agent block when available.
+            _agent_kwargs: dict = {}
+            if _loaded_workflow.agent is not None:
+                if _loaded_workflow.agent.model:
+                    _agent_kwargs["model"] = _loaded_workflow.agent.model
+                if _loaded_workflow.agent.system_prompt:
+                    _agent_kwargs["system_prompt"] = _loaded_workflow.agent.system_prompt
+                if _loaded_workflow.agent.max_iterations is not None:
+                    _agent_kwargs["max_iterations"] = _loaded_workflow.agent.max_iterations
+
+            _registry = AgentRegistry.default()
+            _detector = RunnerDetector(
+                agent_registry=_registry,
+                agent_name=_agent_runtime,
+                agent_kwargs=_agent_kwargs,
+            )
 
             if node is not None:
                 # Single-node isolation: build a single-step composition.

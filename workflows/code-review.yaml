@@ -25,15 +25,11 @@ tools:
   capabilities:
     - repository:read
 
-model:
-  provider: anthropic
-  model_id: claude-sonnet-4-20250514
-  temperature: 0.2
-  max_tokens: 8192
+agent:
+  runtime: claude-code
+  model: claude-sonnet-4-20250514
   system_prompt: prompts/code-review.md
-  retry:
-    max_attempts: 2
-    backoff: exponential
+  max_iterations: 20
 
 safety:
   resources:
