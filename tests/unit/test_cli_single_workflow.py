@@ -30,6 +30,18 @@ from click.testing import CliRunner
 
 from agentry.cli import main
 
+
+# ---------------------------------------------------------------------------
+# Autouse fixture: prevent GITHUB_ACTIONS env var from leaking into tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clear_github_actions_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure GITHUB_ACTIONS is not set, so tests don't pick the github-actions binder."""
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # Minimal workflow YAML (single-agent, empty composition.steps)
 # ---------------------------------------------------------------------------
