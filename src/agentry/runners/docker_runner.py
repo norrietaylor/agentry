@@ -5,10 +5,12 @@ with strict isolation: CPU/memory limits, read-only/read-write bind mounts,
 non-root user (UID 1000), and isolated networking.
 
 The ``execute()`` method starts the provisioned container, mounts a JSON
-config file with LLM client configuration and resolved inputs, then runs the
-runtime shim (``agentry.runners.shim``) inside the container. Timeout
-enforcement kills the container (SIGKILL) if execution exceeds
-``resources.timeout`` seconds.
+config file with agent runtime configuration and resolved inputs, then runs the
+runtime shim (``agentry.runners.shim``) inside the container. The shim
+launches the configured agent runtime (e.g. ClaudeCodeAgent, which invokes
+``claude -p``). Timeout enforcement kills the container (SIGKILL) if execution
+exceeds ``resources.timeout`` seconds. The ``ANTHROPIC_API_KEY`` environment
+variable is forwarded from the host into the container.
 
 Uses ``docker-py`` (the ``docker`` library) for all container lifecycle
 management. The Docker daemon must be reachable for ``check_available()``
@@ -256,6 +258,13 @@ class DockerRunner:
             mem_limit,
         )
 
+        # Forward ANTHROPIC_API_KEY from the host environment into the container
+        # so the agent runtime (claude CLI) can authenticate.
+        container_env: list[str] = []
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if api_key:
+            container_env.append(f"ANTHROPIC_API_KEY={api_key}")
+
         try:
             container = self._client.containers.create(
                 image=image,
@@ -272,6 +281,7 @@ class DockerRunner:
                 mem_limit=mem_limit,
                 network_disabled=False,
                 detach=True,
+                environment=container_env,
                 labels={
                     "agentry.execution_id": execution_id,
                     "agentry.managed": "true",
@@ -315,11 +325,13 @@ class DockerRunner:
     ) -> ExecutionResult:
         """Execute the agent inside the provisioned container.
 
-        Starts the container, mounts a JSON config file with LLM client
+        Starts the container, mounts a JSON config file with agent runtime
         configuration, tool bindings, and resolved inputs, then runs the
         runtime shim (``agentry.runners.shim``) inside the container.
 
-        The shim reads the config, executes the agent, and writes output to
+        The shim reads the config, launches the configured agent runtime
+        (e.g. ClaudeCodeAgent which invokes ``claude -p``), and writes the
+        :class:`~agentry.agents.models.AgentResult` to
         ``/output/result.json``. After the container exits (or is killed on
         timeout), this method reads the result file and returns an
         :class:`ExecutionResult`.
@@ -434,6 +446,9 @@ class DockerRunner:
         # Read the result file from the output directory.
         result_data = self._read_result_file()
 
+        # Parse agent-level result fields from the shim's output.
+        agent_fields = self._parse_agent_result(result_data)
+
         # Build the execution result.
         error_msg = ""
         if timed_out:
@@ -442,7 +457,8 @@ class DockerRunner:
                 f"container id={short_id} was killed."
             )
         elif exit_code != 0:
-            error_msg = result_data.get(
+            # Prefer the agent's error message from result.json if available.
+            error_msg = agent_fields.get("error") or result_data.get(
                 "error",
                 f"Container id={short_id} exited with code {exit_code}.",
             )
@@ -466,6 +482,9 @@ class DockerRunner:
             },
             timed_out=timed_out,
             error=error_msg,
+            output=agent_fields.get("output"),
+            token_usage=agent_fields.get("token_usage", {}),
+            tool_invocations=agent_fields.get("tool_invocations", []),
         )
 
     # ------------------------------------------------------------------
@@ -475,6 +494,9 @@ class DockerRunner:
     @staticmethod
     def _build_config_payload(agent_config: AgentConfig) -> dict[str, Any]:
         """Serialize an AgentConfig into a JSON-compatible dictionary.
+
+        The resulting payload is written to a file mounted inside the container
+        at ``/config/agent_config.json`` and read by the runtime shim.
 
         Args:
             agent_config: The agent configuration to serialize.
@@ -486,21 +508,35 @@ class DockerRunner:
             "system_prompt": agent_config.system_prompt,
             "resolved_inputs": agent_config.resolved_inputs,
             "tool_names": agent_config.tool_names,
-            "llm_config": agent_config.llm_config
-            if isinstance(agent_config.llm_config, dict)
-            else (
-                agent_config.llm_config.__dict__
-                if hasattr(agent_config.llm_config, "__dict__")
-                else {}
-            ),
+            "agent_name": agent_config.agent_name,
+            "agent_config": agent_config.agent_config,
         }
-        if agent_config.retry_config is not None:
-            payload["retry_config"] = agent_config.retry_config
-            if hasattr(agent_config.retry_config, "__dict__"):
-                payload["retry_config"] = agent_config.retry_config.__dict__
         if agent_config.timeout is not None:
             payload["timeout"] = agent_config.timeout
         return payload
+
+    @staticmethod
+    def _parse_agent_result(result_data: dict[str, Any]) -> dict[str, Any]:
+        """Extract agent result fields from the shim's result JSON.
+
+        Reads the structured AgentResult written by the shim and maps its
+        fields into the ``runner_metadata`` dict returned by :meth:`execute`.
+
+        Args:
+            result_data: Parsed result dictionary from ``result.json``.
+
+        Returns:
+            A dictionary with agent-level result fields (output, token_usage,
+            timed_out, raw_output, error).
+        """
+        return {
+            "output": result_data.get("output"),
+            "raw_output": result_data.get("raw_output", ""),
+            "token_usage": result_data.get("token_usage", {}),
+            "tool_invocations": result_data.get("tool_invocations", []),
+            "timed_out": result_data.get("timed_out", False),
+            "error": result_data.get("error", ""),
+        }
 
     @staticmethod
     def _copy_to_container(

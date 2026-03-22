@@ -463,7 +463,8 @@ def _make_agent_config(**overrides: object) -> AgentConfig:
         "system_prompt": "You are a helpful assistant.",
         "resolved_inputs": {"diff": "test diff content"},
         "tool_names": ["repository:read"],
-        "llm_config": {"model": "claude-3-sonnet", "temperature": 0.0},
+        "agent_name": "claude-code",
+        "agent_config": {"model": "claude-sonnet-4-20250514"},
         "timeout": 60.0,
     }
     defaults.update(overrides)
@@ -716,7 +717,8 @@ class TestExecuteConfigPayload:
             system_prompt="Review code",
             resolved_inputs={"diff": "abc"},
             tool_names=["shell:execute"],
-            llm_config={"model": "claude-3"},
+            agent_name="claude-code",
+            agent_config={"model": "claude-sonnet-4-20250514"},
             timeout=30.0,
         )
 
@@ -725,7 +727,8 @@ class TestExecuteConfigPayload:
         assert payload["system_prompt"] == "Review code"
         assert payload["resolved_inputs"] == {"diff": "abc"}
         assert payload["tool_names"] == ["shell:execute"]
-        assert payload["llm_config"] == {"model": "claude-3"}
+        assert payload["agent_name"] == "claude-code"
+        assert payload["agent_config"] == {"model": "claude-sonnet-4-20250514"}
         assert payload["timeout"] == 30.0
 
     def test_omits_timeout_when_none(self) -> None:
@@ -735,18 +738,24 @@ class TestExecuteConfigPayload:
 
         assert "timeout" not in payload
 
-    def test_serialises_object_llm_config(self) -> None:
-        class FakeLLMConfig:
-            def __init__(self):
-                self.model = "claude-3-opus"
-                self.temperature = 0.5
-
-        config = _make_agent_config(llm_config=FakeLLMConfig())
+    def test_serialises_agent_config(self) -> None:
+        config = _make_agent_config(
+            agent_name="claude-code",
+            agent_config={"model": "claude-opus-4-5", "temperature": 0.5},
+        )
 
         payload = DockerRunner._build_config_payload(config)
 
-        assert payload["llm_config"]["model"] == "claude-3-opus"
-        assert payload["llm_config"]["temperature"] == 0.5
+        assert payload["agent_name"] == "claude-code"
+        assert payload["agent_config"]["model"] == "claude-opus-4-5"
+        assert payload["agent_config"]["temperature"] == 0.5
+
+    def test_payload_does_not_contain_llm_config(self) -> None:
+        config = _make_agent_config()
+
+        payload = DockerRunner._build_config_payload(config)
+
+        assert "llm_config" not in payload
 
 
 class TestProvisionCommand:
@@ -880,6 +889,166 @@ class TestFullLifecycle:
         # 3. Teardown.
         runner.teardown(ctx)
         container.remove.assert_called_once_with(force=True, v=True)
+
+
+# ---------------------------------------------------------------------------
+# Agent command and API key injection
+# ---------------------------------------------------------------------------
+
+
+class TestProvisionAgentEnvironment:
+    """Tests that provision() passes ANTHROPIC_API_KEY to the container."""
+
+    def test_passes_anthropic_api_key_when_set(self, monkeypatch) -> None:
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key-123")
+        client = _make_docker_client()
+        client.containers.create.return_value = _make_container_mock()
+        safety = _make_safety_block()
+
+        runner = DockerRunner(docker_client=client)
+        runner.provision(safety_block=safety, resolved_inputs={})
+
+        _, kwargs = client.containers.create.call_args
+        env = kwargs.get("environment", [])
+        assert any("ANTHROPIC_API_KEY=sk-test-key-123" in e for e in env)
+
+    def test_no_api_key_env_when_not_set(self, monkeypatch) -> None:
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        client = _make_docker_client()
+        client.containers.create.return_value = _make_container_mock()
+        safety = _make_safety_block()
+
+        runner = DockerRunner(docker_client=client)
+        runner.provision(safety_block=safety, resolved_inputs={})
+
+        _, kwargs = client.containers.create.call_args
+        env = kwargs.get("environment", [])
+        assert not any("ANTHROPIC_API_KEY" in e for e in env)
+
+    def test_api_key_not_in_command_args(self, monkeypatch) -> None:
+        """ANTHROPIC_API_KEY must not appear in the container command line."""
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-secret-key")
+        client = _make_docker_client()
+        client.containers.create.return_value = _make_container_mock()
+        safety = _make_safety_block()
+
+        runner = DockerRunner(docker_client=client)
+        runner.provision(safety_block=safety, resolved_inputs={})
+
+        _, kwargs = client.containers.create.call_args
+        cmd = kwargs.get("command", [])
+        cmd_str = " ".join(str(c) for c in cmd)
+        assert "sk-secret-key" not in cmd_str
+
+
+# ---------------------------------------------------------------------------
+# _parse_agent_result
+# ---------------------------------------------------------------------------
+
+
+class TestParseAgentResult:
+    """Tests for DockerRunner._parse_agent_result static method."""
+
+    def test_extracts_output(self) -> None:
+        result_data = {
+            "output": {"summary": "LGTM"},
+            "raw_output": "raw text",
+            "token_usage": {"input_tokens": 100, "output_tokens": 50},
+            "tool_invocations": [],
+            "timed_out": False,
+            "error": "",
+        }
+
+        parsed = DockerRunner._parse_agent_result(result_data)
+
+        assert parsed["output"] == {"summary": "LGTM"}
+        assert parsed["raw_output"] == "raw text"
+        assert parsed["token_usage"] == {"input_tokens": 100, "output_tokens": 50}
+        assert parsed["tool_invocations"] == []
+        assert parsed["timed_out"] is False
+        assert parsed["error"] == ""
+
+    def test_defaults_for_missing_keys(self) -> None:
+        result_data: dict = {}
+
+        parsed = DockerRunner._parse_agent_result(result_data)
+
+        assert parsed["output"] is None
+        assert parsed["raw_output"] == ""
+        assert parsed["token_usage"] == {}
+        assert parsed["tool_invocations"] == []
+        assert parsed["timed_out"] is False
+        assert parsed["error"] == ""
+
+    def test_extracts_error(self) -> None:
+        result_data = {"error": "Agent failed", "raw_output": "some output"}
+
+        parsed = DockerRunner._parse_agent_result(result_data)
+
+        assert parsed["error"] == "Agent failed"
+
+    def test_extracts_timed_out(self) -> None:
+        result_data = {"timed_out": True, "error": "Timed out"}
+
+        parsed = DockerRunner._parse_agent_result(result_data)
+
+        assert parsed["timed_out"] is True
+
+
+class TestExecuteAgentResultParsing:
+    """Tests that execute() parses agent result fields into ExecutionResult."""
+
+    def test_execute_populates_output_from_result_file(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        _setup_execute_mocks(client, container, exit_code=0)
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        result_path = os.path.join(output_dir, "result.json")
+        import json as _json
+        with open(result_path, "w") as fh:
+            _json.dump({
+                "exit_code": 0,
+                "output": {"summary": "LGTM"},
+                "raw_output": "Looks good",
+                "token_usage": {"input_tokens": 50, "output_tokens": 20},
+                "tool_invocations": [{"name": "read_file", "result": "ok"}],
+                "error": "",
+            }, fh)
+
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config()
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.output == {"summary": "LGTM"}
+        assert result.token_usage == {"input_tokens": 50, "output_tokens": 20}
+        assert result.tool_invocations == [{"name": "read_file", "result": "ok"}]
+
+    def test_execute_error_prefers_agent_error_from_result_file(self) -> None:
+        client = _make_docker_client()
+        container = _make_container_mock("exec-container-id")
+        _setup_execute_mocks(client, container, exit_code=1)
+
+        output_dir = tempfile.mkdtemp(prefix="agentry-test-output-")
+        result_path = os.path.join(output_dir, "result.json")
+        import json as _json
+        with open(result_path, "w") as fh:
+            _json.dump({
+                "exit_code": 1,
+                "error": "Agent encountered a specific error",
+                "raw_output": "",
+            }, fh)
+
+        runner = DockerRunner(docker_client=client, output_path=output_dir)
+        ctx = RunnerContext(container_id="exec-container-id")
+        config = _make_agent_config()
+
+        result = runner.execute(runner_context=ctx, agent_config=config)
+
+        assert result.exit_code == 1
+        assert "Agent encountered a specific error" in result.error
 
 
 # ---------------------------------------------------------------------------

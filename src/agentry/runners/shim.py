@@ -1,14 +1,16 @@
 """Runtime shim for sandboxed Docker execution.
 
 This lightweight script runs inside the Docker container. It reads a JSON
-configuration file mounted at a known path, executes the agent using the
-Agentry executor, and writes the result to ``/output/result.json``.
+configuration file mounted at a known path, launches the configured agent
+runtime (e.g. ClaudeCodeAgent), and writes the result to
+``/output/result.json``.
 
 The shim is the bridge between the host-side DockerRunner (which provisions
 the container) and the in-container agent execution. The host mounts a
-``config.json`` file containing LLM client configuration, tool bindings,
+``config.json`` file containing agent runtime configuration, tool bindings,
 resolved inputs, and the system prompt. The shim parses this file, constructs
-an ``AgentExecutor``, runs it, and persists the ``ExecutionRecord`` as JSON.
+the appropriate agent runtime via :class:`~agentry.agents.registry.AgentRegistry`,
+runs it, and persists the :class:`~agentry.agents.models.AgentResult` as JSON.
 
 Usage (inside the container)::
 
@@ -25,7 +27,6 @@ from __future__ import annotations
 import json
 import sys
 import traceback
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -63,7 +64,7 @@ def load_config(config_path: str) -> dict[str, Any]:
     with path.open() as fh:
         config = json.load(fh)
 
-    required_keys = {"system_prompt", "resolved_inputs", "tool_names", "llm_config"}
+    required_keys = {"system_prompt", "resolved_inputs", "tool_names"}
     missing = required_keys - set(config.keys())
     if missing:
         raise ValueError(f"Missing required config keys: {sorted(missing)}")
@@ -100,11 +101,12 @@ def run_shim(
     config_path: str = DEFAULT_CONFIG_PATH,
     output_path: str = DEFAULT_OUTPUT_PATH,
 ) -> int:
-    """Execute the agent from configuration and write the result.
+    """Execute the agent runtime from configuration and write the result.
 
     This is the main entry point for the shim. It loads configuration,
-    constructs and runs the agent executor, and writes the execution record
-    to the output path.
+    constructs the configured agent runtime via
+    :class:`~agentry.agents.registry.AgentRegistry`, runs it, and writes the
+    :class:`~agentry.agents.models.AgentResult` to the output path.
 
     Args:
         config_path: Path to the agent configuration JSON file.
@@ -126,28 +128,45 @@ def run_shim(
     try:
         # Import here to allow the module to be importable without the full
         # agentry stack (useful for testing the shim's config parsing).
-        from agentry.executor import AgentExecutor  # noqa: PLC0415
-        from agentry.llm.models import LLMConfig  # noqa: PLC0415
-        from agentry.llm.provider import create_llm_client  # noqa: PLC0415
+        from agentry.agents.models import AgentTask  # noqa: PLC0415
+        from agentry.agents.registry import AgentRegistry  # noqa: PLC0415
 
-        llm_config = LLMConfig(**config["llm_config"])
-        client = create_llm_client(llm_config)
-        executor = AgentExecutor(llm_client=client)
+        agent_name: str = config.get("agent_name", "claude-code")
+        agent_config: dict[str, Any] = config.get("agent_config", {})
 
-        record = executor.run(
+        registry = AgentRegistry.default()
+        agent = registry.get(agent_name, **agent_config)
+
+        # Build an AgentTask from the resolved config.
+        task_parts: list[str] = []
+        resolved_inputs: dict[str, str] = config.get("resolved_inputs", {})
+        for key, value in resolved_inputs.items():
+            task_parts.append(f"{key}:\n{value}")
+        task_description = "\n\n".join(task_parts) if task_parts else ""
+
+        task = AgentTask(
             system_prompt=config["system_prompt"],
-            resolved_inputs=config["resolved_inputs"],
-            tool_names=config["tool_names"],
-            config=llm_config,
-            retry_config=config.get("retry_config"),
+            task_description=task_description,
+            tool_names=config.get("tool_names", []),
             timeout=config.get("timeout"),
+            working_directory="/workspace",
         )
 
-        result = asdict(record)
-        result["exit_code"] = 1 if record.error else 0
-        write_result(output_path, result)
+        agent_result = agent.execute(task)
 
-        return 1 if record.error else 0
+        result: dict[str, Any] = {
+            "exit_code": 1 if agent_result.error else 0,
+            "raw_output": agent_result.raw_output,
+            "error": agent_result.error,
+            "timed_out": agent_result.timed_out,
+            "token_usage": agent_result.token_usage.model_dump(),
+            "tool_invocations": agent_result.tool_invocations,
+        }
+        if agent_result.output is not None:
+            result["output"] = agent_result.output
+
+        write_result(output_path, result)
+        return 1 if agent_result.error else 0
 
     except Exception as exc:
         error_result = {

@@ -1,0 +1,99 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_docker_runner.py tests/unit/test_shim.py -v
+Expected: All tests pass; DockerRunner launches agent command inside container, parses output, enforces timeout; shim launches agent runtimes.
+Timestamp: 2026-03-21T00:00:00Z
+
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+
+tests/unit/test_docker_runner.py::TestCheckAvailable::test_returns_available_when_ping_succeeds PASSED
+tests/unit/test_docker_runner.py::TestCheckAvailable::test_returns_unavailable_when_ping_fails PASSED
+tests/unit/test_docker_runner.py::TestCheckAvailable::test_calls_client_ping PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_returns_runner_context_with_container_id PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_uses_correct_image PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_sets_cpu_limits PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_sets_memory_limit PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_sets_non_root_user PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_mounts_codebase_read_only PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_mounts_output_read_write PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_mounts_filesystem_read_paths PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_mounts_filesystem_write_paths PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_metadata_contains_runner_type PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_metadata_contains_image_and_resources PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_container_has_agentry_labels PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_raises_runtime_error_on_create_failure PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_provision_logs_info PASSED
+tests/unit/test_docker_runner.py::TestProvision::test_container_name_has_prefix PASSED
+tests/unit/test_docker_runner.py::TestTeardown::test_removes_container_with_force_and_volumes PASSED
+tests/unit/test_docker_runner.py::TestTeardown::test_idempotent_on_404 PASSED
+tests/unit/test_docker_runner.py::TestTeardown::test_idempotent_on_no_such_container PASSED
+tests/unit/test_docker_runner.py::TestTeardown::test_idempotent_on_not_found_string PASSED
+tests/unit/test_docker_runner.py::TestTeardown::test_logs_warning_on_unexpected_failure PASSED
+tests/unit/test_docker_runner.py::TestTeardown::test_does_not_raise_on_unexpected_failure PASSED
+tests/unit/test_docker_runner.py::TestTeardown::test_no_op_when_container_id_is_empty PASSED
+tests/unit/test_docker_runner.py::TestTeardown::test_teardown_when_remove_fails PASSED
+tests/unit/test_docker_runner.py::TestConstructor::test_raises_runtime_error_without_docker_installed PASSED
+tests/unit/test_docker_runner.py::TestConstructor::test_accepts_explicit_client PASSED
+tests/unit/test_docker_runner.py::TestConstructor::test_stores_codebase_path PASSED
+tests/unit/test_docker_runner.py::TestConstructor::test_stores_output_path PASSED
+tests/unit/test_docker_runner.py::TestProtocolCompliance::test_satisfies_runner_protocol PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_returns_error_when_no_container_id PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_returns_error_when_container_not_found PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_starts_container PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_copies_config_to_container PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_waits_for_container_with_timeout PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_successful_execution_returns_zero_exit_code PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_nonzero_exit_code_produces_error PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_returns_error_when_start_fails PASSED
+tests/unit/test_docker_runner.py::TestExecute::test_runner_metadata_includes_container_info PASSED
+tests/unit/test_docker_runner.py::TestExecuteTimeout::test_kills_container_on_timeout PASSED
+tests/unit/test_docker_runner.py::TestExecuteTimeout::test_timeout_error_message_includes_duration PASSED
+tests/unit/test_docker_runner.py::TestExecuteTimeout::test_non_timeout_wait_error_returns_error_result PASSED
+tests/unit/test_docker_runner.py::TestExecuteTimeout::test_kill_failure_is_handled_gracefully PASSED
+tests/unit/test_docker_runner.py::TestExecuteConfigPayload::test_serialises_basic_config PASSED
+tests/unit/test_docker_runner.py::TestExecuteConfigPayload::test_omits_timeout_when_none PASSED
+tests/unit/test_docker_runner.py::TestExecuteConfigPayload::test_serialises_agent_config PASSED
+tests/unit/test_docker_runner.py::TestExecuteConfigPayload::test_payload_does_not_contain_llm_config PASSED
+tests/unit/test_docker_runner.py::TestProvisionCommand::test_provision_sets_shim_command PASSED
+tests/unit/test_docker_runner.py::TestReadResultFile::test_reads_valid_result PASSED
+tests/unit/test_docker_runner.py::TestReadResultFile::test_returns_error_when_file_missing PASSED
+tests/unit/test_docker_runner.py::TestReadResultFile::test_returns_error_on_invalid_json PASSED
+tests/unit/test_docker_runner.py::TestBuildBindMounts::test_basic_mounts PASSED
+tests/unit/test_docker_runner.py::TestBuildBindMounts::test_read_mounts PASSED
+tests/unit/test_docker_runner.py::TestBuildBindMounts::test_write_mounts PASSED
+tests/unit/test_docker_runner.py::TestFullLifecycle::test_provision_then_teardown PASSED
+tests/unit/test_docker_runner.py::TestProvisionAgentEnvironment::test_passes_anthropic_api_key_when_set PASSED
+tests/unit/test_docker_runner.py::TestProvisionAgentEnvironment::test_no_api_key_env_when_not_set PASSED
+tests/unit/test_docker_runner.py::TestProvisionAgentEnvironment::test_api_key_not_in_command_args PASSED
+tests/unit/test_docker_runner.py::TestParseAgentResult::test_extracts_output PASSED
+tests/unit/test_docker_runner.py::TestParseAgentResult::test_defaults_for_missing_keys PASSED
+tests/unit/test_docker_runner.py::TestParseAgentResult::test_extracts_error PASSED
+tests/unit/test_docker_runner.py::TestParseAgentResult::test_extracts_timed_out PASSED
+tests/unit/test_docker_runner.py::TestExecuteAgentResultParsing::test_execute_populates_output_from_result_file PASSED
+tests/unit/test_docker_runner.py::TestExecuteAgentResultParsing::test_execute_error_prefers_agent_error_from_result_file PASSED
+tests/unit/test_docker_runner.py::TestDockerRunnerIntegration::test_check_available_with_real_daemon SKIPPED
+tests/unit/test_shim.py::TestLoadConfig::test_loads_valid_config PASSED
+tests/unit/test_shim.py::TestLoadConfig::test_raises_file_not_found PASSED
+tests/unit/test_shim.py::TestLoadConfig::test_raises_on_invalid_json PASSED
+tests/unit/test_shim.py::TestLoadConfig::test_raises_on_missing_required_keys PASSED
+tests/unit/test_shim.py::TestLoadConfig::test_accepts_extra_keys PASSED
+tests/unit/test_shim.py::TestWriteResult::test_writes_json PASSED
+tests/unit/test_shim.py::TestWriteResult::test_creates_parent_directories PASSED
+tests/unit/test_shim.py::TestRunShim::test_returns_2_on_missing_config PASSED
+tests/unit/test_shim.py::TestRunShim::test_returns_2_on_invalid_config PASSED
+tests/unit/test_shim.py::TestRunShim::test_returns_2_on_missing_keys PASSED
+tests/unit/test_shim.py::TestRunShimAgentRuntime::test_run_shim_calls_agent_execute PASSED
+tests/unit/test_shim.py::TestRunShimAgentRuntime::test_run_shim_uses_agent_name_from_config PASSED
+tests/unit/test_shim.py::TestRunShimAgentRuntime::test_run_shim_defaults_agent_name_to_claude_code PASSED
+tests/unit/test_shim.py::TestRunShimAgentRuntime::test_run_shim_writes_agent_result_to_output PASSED
+tests/unit/test_shim.py::TestRunShimAgentRuntime::test_run_shim_returns_1_when_agent_has_error PASSED
+tests/unit/test_shim.py::TestRunShimAgentRuntime::test_run_shim_builds_task_description_from_resolved_inputs PASSED
+tests/unit/test_shim.py::TestShimNoAgentExecutor::test_shim_module_imports_do_not_include_agent_executor PASSED
+tests/unit/test_shim.py::TestConstants::test_default_config_path PASSED
+tests/unit/test_shim.py::TestConstants::test_default_output_path PASSED
+
+======================== 84 passed, 1 skipped in 0.43s =========================
+
+Status: PASS

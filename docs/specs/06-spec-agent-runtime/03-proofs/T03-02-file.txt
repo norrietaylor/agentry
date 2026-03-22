@@ -1,0 +1,42 @@
+Type: file
+Description: src/agentry/runners/shim.py updated to launch agent runtimes instead of AgentExecutor.
+Expected: shim.py references AgentRegistry/ClaudeCodeAgent, not AgentExecutor; run_shim() uses agent.execute().
+Timestamp: 2026-03-21T00:00:00Z
+
+Verification: grep for AgentExecutor in shim.py (should not appear in imports or code body):
+
+$ grep -n "AgentExecutor" src/agentry/runners/shim.py
+(no output -- AgentExecutor is not referenced in the updated shim)
+
+Verification: grep for AgentRegistry in shim.py:
+
+$ grep -n "AgentRegistry" src/agentry/runners/shim.py
+        from agentry.agents.registry import AgentRegistry  # noqa: PLC0415
+
+Verification: grep for ClaudeCodeAgent-related patterns:
+
+$ grep -n "AgentTask\|AgentRegistry\|agent_name\|agent_config" src/agentry/runners/shim.py
+        from agentry.agents.models import AgentTask  # noqa: PLC0415
+        from agentry.agents.registry import AgentRegistry  # noqa: PLC0415
+        agent_name: str = config.get("agent_name", "claude-code")
+        agent_config: dict[str, Any] = config.get("agent_config", {})
+        registry = AgentRegistry.default()
+        agent = registry.get(agent_name, **agent_config)
+
+Key changes in shim.py:
+- Removed imports: from agentry.executor import AgentExecutor
+- Removed imports: from agentry.llm.models import LLMConfig
+- Removed imports: from agentry.llm.provider import create_llm_client
+- Added: from agentry.agents.models import AgentTask (inside run_shim)
+- Added: from agentry.agents.registry import AgentRegistry (inside run_shim)
+- run_shim() now uses AgentRegistry.default().get(agent_name) to resolve agent
+- run_shim() builds AgentTask from config and calls agent.execute(task)
+- run_shim() serializes AgentResult fields to result.json
+
+Key changes in docker_runner.py:
+- _build_config_payload() now uses agent_name/agent_config instead of llm_config
+- Added _parse_agent_result() static method to extract AgentResult fields
+- provision() forwards ANTHROPIC_API_KEY from host env into container environment
+- execute() populates ExecutionResult.output, token_usage, tool_invocations from result.json
+
+Status: PASS
