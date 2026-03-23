@@ -857,13 +857,9 @@ def run(
             )
             logger.info("Execution record written: %s", _record_path)
 
-            # Write output.json alongside execution-record.json.
-            _output_paths = _active_binder.map_outputs(
-                output_declarations={},
-                target_dir=target,
-                run_id=_run_id,
-            )
-            _output_json_path = Path(_output_paths.get("output", str(_runs_base / _run_id / "output.json")))
+            # Write output.json BEFORE map_outputs, because map_outputs
+            # may post the file content as a PR comment (GitHub Actions binder).
+            _output_json_path = _runs_base / _run_id / "output.json"
             _output_json_path.parent.mkdir(parents=True, exist_ok=True)
             _output_payload_record: dict[str, object] = {
                 "execution_id": _run_id,
@@ -872,6 +868,13 @@ def run(
             }
             _output_json_path.write_text(_json.dumps(_output_payload_record, indent=2), encoding="utf-8")
             logger.info("Output record written: %s", _output_json_path)
+
+            # Now map outputs (which may read the file and post as PR comment).
+            _active_binder.map_outputs(
+                output_declarations={},
+                target_dir=target,
+                run_id=_run_id,
+            )
         except Exception as _record_exc:  # noqa: BLE001
             logger.warning("Failed to write execution record: %s", _record_exc)
 
