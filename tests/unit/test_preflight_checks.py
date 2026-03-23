@@ -232,6 +232,15 @@ class TestClaudeCodeAuthCheck:
         assert result.passed is True
         assert "ANTHROPIC_API_KEY is set" in result.message
 
+    def test_passes_when_oauth_token_set(self) -> None:
+        """Should pass when CLAUDE_CODE_OAUTH_TOKEN is set, even without API key or CLI."""
+        check = ClaudeCodeAuthCheck()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "", "CLAUDE_CODE_OAUTH_TOKEN": "tok-123"}, clear=False), \
+             patch("shutil.which", return_value=None):
+            result = check.run()
+        assert result.passed is True
+        assert "CLAUDE_CODE_OAUTH_TOKEN is set" in result.message
+
     def test_passes_when_claude_on_path(self) -> None:
         """Should pass when claude CLI is available, even without API key."""
         check = ClaudeCodeAuthCheck()

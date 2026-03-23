@@ -4,7 +4,7 @@
 # Manually refined to include:
 # - Proper workflow name capitalization ("Code Review" instead of "code-review")
 # - Permissions for pull-request write access (pr:review and pr:comment tools)
-# - Workflow-level env section with ANTHROPIC_API_KEY
+# - Workflow-level env section with CLAUDE_CODE_OAUTH_TOKEN
 # - Local installation via "pip install ." (using workspace as source)
 # - Specific agentry run parameters: --input diff, --input codebase, --binder, --output-format
 # - Improved formatting and readability with proper spacing
@@ -17,9 +17,6 @@ name: "Agentry: Code Review"
 permissions:
   contents: read
   pull-requests: write
-
-env:
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
 jobs:
   agentry:
@@ -43,5 +40,5 @@ jobs:
           --input codebase=.
           --binder github-actions
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

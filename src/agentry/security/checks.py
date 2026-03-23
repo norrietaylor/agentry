@@ -217,13 +217,16 @@ class ClaudeCodeAuthCheck:
     Passes if **any** of the following hold:
 
     1. ``ANTHROPIC_API_KEY`` is set (direct API access).
-    2. The ``claude`` CLI is on PATH (OAuth, GitHub App, or other managed auth).
+    2. ``CLAUDE_CODE_OAUTH_TOKEN`` is set (Claude GitHub App or OAuth token).
+    3. The ``claude`` CLI is on PATH (OAuth, GitHub App, or other managed auth).
 
     This is the recommended preflight check when the agent runtime is
     ``claude-code``, because Claude Code supports multiple authentication
     methods beyond raw API keys (OAuth via ``claude login``, the Claude
     GitHub App in CI, etc.).
     """
+
+    _OAUTH_TOKEN_VAR = "CLAUDE_CODE_OAUTH_TOKEN"
 
     def __init__(self, env_var: str = "ANTHROPIC_API_KEY") -> None:
         self._env_var = env_var
@@ -244,7 +247,16 @@ class ClaudeCodeAuthCheck:
                 message=f"{self._env_var} is set.",
             )
 
-        # Method 2: claude CLI is available (handles its own auth via
+        # Method 2: CLAUDE_CODE_OAUTH_TOKEN is set (Claude GitHub App, OAuth).
+        oauth_token = os.environ.get(self._OAUTH_TOKEN_VAR, "")
+        if oauth_token:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message=f"{self._OAUTH_TOKEN_VAR} is set.",
+            )
+
+        # Method 3: claude CLI is available (handles its own auth via
         # OAuth, GitHub App, etc.).
         claude_path = shutil.which("claude")
         if claude_path:
