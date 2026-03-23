@@ -50,9 +50,12 @@ class ClaudeCodeAgent:
         self,
         model: str = "claude-sonnet-4-20250514",
         env_overrides: dict[str, str] | None = None,
+        max_iterations: int | None = None,
+        **kwargs: object,
     ) -> None:
         self._model = model
         self._env_overrides = env_overrides or {}
+        self._max_turns = max_iterations
 
     # ------------------------------------------------------------------
     # Public API
@@ -144,6 +147,9 @@ class ClaudeCodeAgent:
         cmd: list[str] = ["claude", "-p"]
 
         cmd.extend(["--model", self._model])
+
+        if self._max_turns is not None:
+            cmd.extend(["--max-turns", str(self._max_turns)])
 
         if agent_task.output_schema is not None:
             cmd.extend(["--output-format", "json"])
