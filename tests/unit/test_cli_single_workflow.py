@@ -271,10 +271,10 @@ def test_missing_api_key_exits_one_with_clear_error(tmp_path: Path) -> None:
     runner = CliRunner()
 
     with patch(
-        "agentry.security.checks.AnthropicAPIKeyCheck.run",
+        "agentry.security.checks.ClaudeCodeAuthCheck.run",
     ) as mock_check:
         mock_check.return_value = PreflightCheckResult(
-            name="AnthropicAPIKeyCheck",
+            name="claude_code_auth",
             passed=False,
             message="ANTHROPIC_API_KEY is not set",
             remediation="Export ANTHROPIC_API_KEY=<your-key>",
@@ -314,7 +314,7 @@ def test_skip_preflight_bypasses_api_key_check(tmp_path: Path) -> None:
     with patch("agentry.runners.detector.RunnerDetector") as mock_detector_cls, \
          patch("agentry.security.envelope.SecurityEnvelope.execute",
                return_value=mock_env_result), \
-         patch("agentry.security.checks.AnthropicAPIKeyCheck.run") as mock_check:
+         patch("agentry.security.checks.ClaudeCodeAuthCheck.run") as mock_check:
 
         mock_detector_instance = MagicMock()
         mock_detector_instance.get_runner.return_value = MagicMock()

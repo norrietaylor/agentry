@@ -715,19 +715,76 @@ class GitHubActionsBinder:
 
         # When the event is a pull request, post the output as a PR comment.
         if self._pr_number is not None:
-            # Read the output file content for the PR comment body, if it exists.
-            comment_body: str
-            if output_path.exists():
-                try:
-                    comment_body = output_path.read_text(encoding="utf-8")
-                except OSError:
-                    comment_body = str(output_path)
-            else:
-                comment_body = f"Agent run output: {output_path}"
-
+            comment_body = self._format_output_comment(output_path)
             self._post_output_comment(comment_body)
 
         return paths
+
+    def _format_output_comment(self, output_path: Path) -> str:
+        """Format the agent output as a readable PR comment.
+
+        Reads the output JSON file and formats findings, summary, and
+        metadata into a Markdown comment. Falls back to raw JSON if the
+        output structure is unrecognised.
+        """
+        if not output_path.exists():
+            return f"Agent run output: {output_path} (file not found)"
+
+        try:
+            raw = output_path.read_text(encoding="utf-8")
+        except OSError:
+            return f"Agent run output: {output_path} (read error)"
+
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return f"**Agent Output**\n\n```\n{raw[:3000]}\n```"
+
+        agent_output = data.get("output") or {}
+        parts: list[str] = ["## Agentry Code Review\n"]
+
+        # Summary
+        summary = agent_output.get("summary", "")
+        if summary:
+            parts.append(f"{summary}\n")
+
+        # Findings
+        findings = agent_output.get("findings", [])
+        if findings:
+            parts.append(f"### Findings ({len(findings)})\n")
+            for f in findings:
+                severity = f.get("severity", "info")
+                emoji = {"critical": "🔴", "warning": "🟡", "info": "🔵"}.get(severity, "⚪")
+                file_ = f.get("file", "")
+                line = f.get("line", "")
+                desc = f.get("description", "")
+                suggestion = f.get("suggestion", "")
+                category = f.get("category", "")
+                loc = f"`{file_}:{line}`" if file_ else ""
+                parts.append(f"{emoji} **{severity}** ({category}) {loc}")
+                parts.append(f"  {desc}")
+                if suggestion:
+                    parts.append(f"  > 💡 {suggestion}")
+                parts.append("")
+
+        # Confidence
+        confidence = agent_output.get("confidence")
+        if confidence is not None:
+            parts.append(f"**Confidence:** {confidence}")
+
+        # Raw response fallback
+        raw_response = agent_output.get("raw_response", "")
+        if raw_response and not findings and not summary:
+            parts.append(f"```\n{raw_response[:3000]}\n```")
+
+        # Token usage
+        usage = data.get("token_usage", {})
+        if usage:
+            _in = usage.get("input_tokens", 0)
+            _out = usage.get("output_tokens", 0)
+            parts.append(f"\n---\n*Tokens: {_in:,} in / {_out:,} out*")
+
+        return "\n".join(parts)
 
     def _post_output_comment(self, body: str) -> dict[str, Any]:
         """Post agent output as a PR comment via the GitHub REST API.

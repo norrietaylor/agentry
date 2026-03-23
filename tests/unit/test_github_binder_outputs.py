@@ -248,7 +248,17 @@ class TestMapOutputsPR:
         run_id = "runWithOutput"
         runs_dir = Path(workspace) / ".agentry" / "runs" / run_id
         runs_dir.mkdir(parents=True, exist_ok=True)
-        output_content = '{"result": "code review complete"}'
+        import json as _json
+
+        output_content = _json.dumps({
+            "output": {
+                "findings": [{"file": "foo.py", "line": 1, "severity": "warning",
+                              "category": "style", "description": "bad name"}],
+                "summary": "One issue found.",
+                "confidence": 0.8,
+            },
+            "token_usage": {"input_tokens": 100, "output_tokens": 50},
+        })
         (runs_dir / "output.json").write_text(output_content, encoding="utf-8")
 
         with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
@@ -256,7 +266,11 @@ class TestMapOutputsPR:
 
         call_kwargs = mock_post.call_args.kwargs
         posted_body = call_kwargs.get("json", {}).get("body", "")
-        assert posted_body == output_content
+        # Should contain formatted review content, not raw JSON.
+        assert "Agentry Code Review" in posted_body
+        assert "One issue found" in posted_body
+        assert "bad name" in posted_body
+        assert "Confidence" in posted_body
 
     def test_pr_comment_fallback_when_output_json_missing(
         self, binder_pr: GitHubActionsBinder

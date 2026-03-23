@@ -123,6 +123,7 @@ class InProcessRunner:
             task_description=task_description,
             tool_names=agent_config.tool_names,
             timeout=agent_config.timeout,
+            output_schema=agent_config.output_schema,
         )
 
         agent_result = self.agent.execute(agent_task)
