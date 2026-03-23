@@ -220,6 +220,8 @@
     z-index: 100;
   }
 
+  .logo-img { width: 64px; height: auto; }
+
   .logo-text {
     font-size: 1.2rem;
     font-weight: 700;
@@ -278,66 +280,104 @@
 
   /* ---- Mobile / narrow viewport ---- */
   @media (max-width: 768px) {
+    /* 1. Fix padding — desktop 80px 120px is way too wide */
     .slide {
-      padding: 40px 24px;
+      padding: 32px 20px;
+      padding-bottom: 48px; /* room for slide number */
       overflow-y: auto;
     }
 
-    h1 { font-size: 1.8rem; margin-bottom: 16px; }
-    h2 { font-size: 1.5rem; margin-bottom: 14px; }
-    h3 { font-size: 1.1rem; margin-bottom: 8px; }
-    p, li { font-size: 1rem; line-height: 1.5; }
-    .subtitle { font-size: 1.1rem; }
+    /* 7. Allow body scroll on overflowing slides */
+    body { overflow: auto; }
 
+    /* 2. Scale fonts for phone screens */
+    h1 { font-size: 1.6rem; margin-bottom: 12px; }
+    h2 { font-size: 1.3rem; margin-bottom: 10px; }
+    h3 { font-size: 1rem; margin-bottom: 6px; }
+    p, li { font-size: 0.95rem; line-height: 1.45; }
+    .subtitle { font-size: 1.05rem; }
+
+    /* 4. Code blocks: wrap instead of horizontal overflow */
     pre {
-      padding: 16px;
-      font-size: 0.8rem;
+      padding: 14px 16px;
+      font-size: 0.75rem;
       border-radius: 8px;
-      margin: 12px 0;
+      margin: 10px 0;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
-    pre code { font-size: 0.8rem; }
+    pre code { font-size: 0.75rem; white-space: pre-wrap; }
     code { font-size: 0.8em; padding: 1px 5px; }
 
+    /* 3. Grids collapse to single column */
     .grid-2, .grid-3 {
       grid-template-columns: 1fr;
-      gap: 20px;
+      gap: 16px;
     }
 
-    .card { padding: 20px; }
-    .card p { font-size: 1rem; }
+    /* Stats row: keep 3-col but shrink */
+    .grid-3:has(.big-number) {
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
 
-    .big-number { font-size: 2.2rem; }
-    .stat-label { font-size: 0.9rem; }
+    .card { padding: 16px; }
+    .card p { font-size: 0.9rem; }
 
-    .tag { font-size: 0.75rem; padding: 3px 10px; }
+    .big-number { font-size: 1.8rem; }
+    .stat-label { font-size: 0.8rem; }
 
-    .arch-diagram { font-size: 0.9rem; line-height: 1.7; }
-    .arch-diagram .layer { padding: 8px 14px; }
-    .layer-2 { margin-left: 20px; }
-    .layer-3 { margin-left: 40px; }
-    .layer-4 { margin-left: 60px; }
+    .tag { font-size: 0.7rem; padding: 2px 8px; margin-right: 4px; }
 
-    .flow-item { font-size: 0.9rem; padding: 6px 12px; }
-    .flow-arrow { font-size: 1rem; margin: 0 6px; }
+    /* Architecture layers: shallower indent for narrow screens */
+    .arch-diagram { font-size: 0.85rem; line-height: 1.6; }
+    .arch-diagram .layer { padding: 8px 12px; }
+    .layer-2 { margin-left: 16px; }
+    .layer-3 { margin-left: 32px; }
+    .layer-4 { margin-left: 48px; }
 
+    /* 5. Flow diagram: stack vertically when too narrow */
+    .flow-item { font-size: 0.85rem; padding: 5px 10px; }
+    .flow-arrow { font-size: 0.9rem; margin: 0 4px; }
+
+    /* 6. Table: tighter on mobile */
     .comparison-table th, .comparison-table td {
-      padding: 10px 12px;
-      font-size: 0.9rem;
+      padding: 8px 10px;
+      font-size: 0.85rem;
     }
-    .comparison-table th { font-size: 0.75rem; }
+    .comparison-table th { font-size: 0.7rem; }
 
-    ul li { padding-left: 20px; }
-    ul li::before { top: 12px; width: 8px; height: 8px; }
+    ul li { padding: 5px 0; padding-left: 18px; }
+    ul li::before { top: 11px; width: 7px; height: 7px; }
 
-    .divider { width: 40px; height: 3px; margin: 16px 0; }
-    .slide-number { right: 16px; bottom: 12px; }
+    .divider { width: 36px; height: 3px; margin: 12px 0; }
+    .slide-number { right: 12px; bottom: 8px; font-size: 0.8rem; }
 
-    .logo-text { font-size: 1rem; }
+    /* 8. Shrink logo on mobile */
+    .logo-img { width: 40px; }
+    .logo-text { font-size: 0.9rem; letter-spacing: 0.1em; }
+
+    /* Inline style overrides for specific slides */
+    [style*="font-size:1.6rem"] { font-size: 1.05rem !important; }
+    [style*="font-size:1.4rem"] { font-size: 1rem !important; }
+    [style*="margin-top:32px"] { margin-top: 16px !important; }
   }
 
-  /* Touch swipe support */
+  /* Extra small (iPhone SE, etc.) */
+  @media (max-width: 375px) {
+    .slide { padding: 24px 16px; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.15rem; }
+    pre { font-size: 0.7rem; padding: 10px 12px; }
+    .big-number { font-size: 1.5rem; }
+    .flow-item { font-size: 0.8rem; padding: 4px 8px; }
+  }
+
+  /* Touch devices */
   @media (pointer: coarse) {
     body { touch-action: pan-y; }
+    /* 9. Hide keyboard nav hint on touch */
+    .nav-hint { display: none; }
   }
 </style>
 </head>
@@ -347,7 +387,7 @@
   <!-- Slide 1: Title -->
   <div class="slide active" id="s1">
     <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
-      <img src="../assets/agentry-logo-dark.svg" alt="Agentry" width="64">
+      <img src="../assets/agentry-logo-dark.svg" alt="Agentry" class="logo-img">
       <span class="logo-text" style="margin-bottom:0;">Agentry</span>
     </div>
     <h1>Portable Agentic<br>Workflow Orchestration</h1>
@@ -597,7 +637,7 @@ gitlab =
   <!-- Slide 11: Closing -->
   <div class="slide" id="s11">
     <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px;">
-      <img src="../assets/agentry-logo-dark.svg" alt="Agentry" width="64">
+      <img src="../assets/agentry-logo-dark.svg" alt="Agentry" class="logo-img">
       <span class="logo-text" style="margin-bottom:0;">Agentry</span>
     </div>
     <h1>Define Once.<br>Run Everywhere.</h1>
