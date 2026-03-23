@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 
 from agentry.security.checks import (
     AnthropicAPIKeyCheck,
+    ClaudeCodeAuthCheck,
     DockerAvailableCheck,
     FilesystemMountsCheck,
 )
@@ -212,6 +213,65 @@ class TestAnthropicAPIKeyCheck:
         with patch.dict(os.environ, env, clear=True):
             result = check.run()
         assert isinstance(result.passed, bool)
+
+
+# ---------------------------------------------------------------------------
+# ClaudeCodeAuthCheck tests
+# ---------------------------------------------------------------------------
+
+
+class TestClaudeCodeAuthCheck:
+    """Tests for ClaudeCodeAuthCheck."""
+
+    def test_passes_when_api_key_set(self) -> None:
+        """Should pass when ANTHROPIC_API_KEY is set, even if claude not on PATH."""
+        check = ClaudeCodeAuthCheck()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"}), \
+             patch("shutil.which", return_value=None):
+            result = check.run()
+        assert result.passed is True
+        assert "ANTHROPIC_API_KEY is set" in result.message
+
+    def test_passes_when_claude_on_path(self) -> None:
+        """Should pass when claude CLI is available, even without API key."""
+        check = ClaudeCodeAuthCheck()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""}, clear=False), \
+             patch("shutil.which", return_value="/usr/local/bin/claude"):
+            result = check.run()
+        assert result.passed is True
+        assert "claude CLI is available" in result.message
+
+    def test_fails_when_no_auth(self) -> None:
+        """Should fail when neither API key nor claude CLI is available."""
+        check = ClaudeCodeAuthCheck()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": ""}, clear=False), \
+             patch("shutil.which", return_value=None):
+            result = check.run()
+        assert result.passed is False
+        assert "No Claude Code authentication found" in result.message
+        assert result.remediation != ""
+
+    def test_api_key_takes_precedence(self) -> None:
+        """When API key is set, should report that — not check for claude CLI."""
+        check = ClaudeCodeAuthCheck()
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"}), \
+             patch("shutil.which") as mock_which:
+            result = check.run()
+        # shutil.which should not be called when API key is present
+        mock_which.assert_not_called()
+        assert result.passed is True
+
+    def test_custom_env_var(self) -> None:
+        """Should respect custom env var name."""
+        check = ClaudeCodeAuthCheck(env_var="MY_KEY")
+        with patch.dict(os.environ, {"MY_KEY": "custom-key"}):
+            result = check.run()
+        assert result.passed is True
+
+    def test_name(self) -> None:
+        """Check name is claude_code_auth."""
+        check = ClaudeCodeAuthCheck()
+        assert check.name == "claude_code_auth"
 
 
 # ---------------------------------------------------------------------------

@@ -511,7 +511,7 @@ def run(
     try:
         from agentry.security.checks import (
             AgentAvailabilityCheck,
-            AnthropicAPIKeyCheck,
+            ClaudeCodeAuthCheck,
             DockerAvailableCheck,
             FilesystemMountsCheck,
             GitHubTokenScopeCheck,
@@ -526,7 +526,7 @@ def run(
         _checks: list[Any] = []
         if not skip_preflight:
             _checks = [
-                AnthropicAPIKeyCheck(),
+                ClaudeCodeAuthCheck(),
                 DockerAvailableCheck(trust=_loaded_workflow.safety.trust.value),
                 FilesystemMountsCheck(
                     read_paths=list(_loaded_workflow.safety.filesystem.read),
@@ -727,7 +727,7 @@ def run(
         from agentry.runners.detector import RunnerDetector
         from agentry.security.checks import (
             AgentAvailabilityCheck,
-            AnthropicAPIKeyCheck,
+            ClaudeCodeAuthCheck,
             DockerAvailableCheck,
             FilesystemMountsCheck,
             GitHubTokenScopeCheck,
@@ -760,7 +760,7 @@ def run(
         _envelope_checks: list[Any] = []
         if not skip_preflight:
             _envelope_checks = [
-                AnthropicAPIKeyCheck(),
+                ClaudeCodeAuthCheck(),
                 DockerAvailableCheck(trust=_loaded_workflow.safety.trust.value),
                 FilesystemMountsCheck(
                     read_paths=list(_loaded_workflow.safety.filesystem.read),
@@ -983,14 +983,14 @@ def setup(
 
     # Build preflight checks appropriate for the trust level.
     from agentry.security.checks import (
-        AnthropicAPIKeyCheck,
+        ClaudeCodeAuthCheck,
         DockerAvailableCheck,
         FilesystemMountsCheck,
     )
     checks: list[Any] = []
     if not skip_preflight:
         checks = [
-            AnthropicAPIKeyCheck(),
+            ClaudeCodeAuthCheck(),
             DockerAvailableCheck(trust=workflow.safety.trust.value),
             FilesystemMountsCheck(
                 read_paths=list(workflow.safety.filesystem.read),
