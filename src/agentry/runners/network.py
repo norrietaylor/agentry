@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # can be imported even in environments without it (e.g. when running unit tests
 # with a mock injected via the constructor).
 try:
-    import docker  # type: ignore[import-untyped]
+    import docker
 
     _DOCKER_AVAILABLE = True
 except ImportError:
@@ -81,7 +81,7 @@ class NetworkManager:
         if docker_client is not None:
             self._client = docker_client
         elif _DOCKER_AVAILABLE:
-            self._client = docker.from_env()  # type: ignore[union-attr]
+            self._client = docker.from_env()
         else:
             raise RuntimeError(
                 "docker-py is not installed. Install it with: pip install docker"

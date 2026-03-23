@@ -1,0 +1,31 @@
+Type: cli
+Command: python3 -c "_is_git_ref functional verification"
+Expected: All git ref patterns return True; all raw diff patterns return False
+Timestamp: 2026-03-22T00:00:00Z
+
+--- _is_git_ref() pattern detection verification ---
+
+PASS: _is_git_ref('HEAD') = True (expected True) -- bare HEAD
+PASS: _is_git_ref('HEAD~1') = True (expected True) -- HEAD with tilde offset
+PASS: _is_git_ref('HEAD~3') = True (expected True) -- HEAD with tilde offset 3
+PASS: _is_git_ref('HEAD^2') = True (expected True) -- HEAD with caret offset
+PASS: _is_git_ref('abc1234') = True (expected True) -- 7-char SHA prefix
+PASS: _is_git_ref('abc1234def456789abcdef') = True (expected True) -- 22-char SHA
+PASS: _is_git_ref('main..feature') = True (expected True) -- double-dot range
+PASS: _is_git_ref('v1.0.0...v2.0.0') = True (expected True) -- triple-dot range
+PASS: _is_git_ref('main') = True (expected True) -- branch name
+PASS: _is_git_ref('origin/main') = True (expected True) -- remote/branch
+PASS: _is_git_ref('feature/my-branch') = True (expected True) -- feature branch with slash
+PASS: _is_git_ref('diff --git a/f b/f\n--- a/f') = False (expected False) -- multiline raw diff
+PASS: _is_git_ref('--- a/file.py') = False (expected False) -- raw diff header line
+PASS: _is_git_ref('') = False (expected False) -- empty string
+PASS: _is_git_ref('   ') = False (expected False) -- whitespace only
+
+All tests passed
+
+--- ruff lint check ---
+
+Command: ruff check src/agentry/binders/local.py
+Output: All checks passed!
+
+Status: PASS

@@ -1,7 +1,26 @@
 # Agentry Backlog
 
-Deferred items collected from Phase 1-5 specs, PRD, RFC, and source code.
+Deferred items collected from Phase 1-6 specs, PRD, RFC, and source code.
 Items are grouped by category. Each item notes its source and any recommended priority.
+
+---
+
+## Phase 6 Completed — Self-Development
+
+Phase 6 (Self-Development) is complete. Agentry can now execute its own workflows, review its own PRs in CI, resolve git-diff inputs, and propose fixes via agent-generated PRs.
+
+- [x] **Wire single-workflow execution** — replaced CLI stub with real RunnerDetector → Runner → Agent pipeline _(Phase 6, T01)_
+- [x] **Execution records** — writes to `.agentry/runs/TIMESTAMP/` after each run _(Phase 6, T01.2)_
+- [x] **Git-diff input resolution** — `--input diff=HEAD~1` auto-resolves git refs to diff content _(Phase 6, T02)_
+- [x] **Self-reviewing PRs in CI** — `.github/workflows/agentry-code-review.yml` runs code-review on every PR _(Phase 6, T03)_
+- [x] **`pr:create` tool binding** — both LocalBinder (via `gh` CLI) and GitHubActionsBinder (via REST API) _(Phase 6, T04)_
+- [ ] **Issue-triggered triage** — run triage workflow on new GitHub issues _(Phase 6 Non-Goals)_
+- [ ] **Scheduled pipeline runs** — backlog grooming via cron-triggered planning-pipeline _(Phase 6 Non-Goals)_
+- [ ] **Auto-merge for small fixes** — agent PRs that pass CI and are under N lines _(Phase 6 Non-Goals)_
+- [ ] **Token budget enforcement** — per-execution cost caps _(Phase 6 Non-Goals)_
+- [ ] **Streaming agent output** — real-time output during execution _(Phase 6 Non-Goals)_
+
+_Source: Phase 6 spec Non-Goals, Open Questions_
 
 ---
 
@@ -98,7 +117,7 @@ _Source: repo readiness assessment_
 
 ## Tool Capabilities
 
-- [x] **PR tools** — `pr:comment`, `pr:review` bound in GitHub Actions binder _(Phase 4)_
+- [x] **PR tools** — `pr:comment`, `pr:review`, `pr:create` bound in both binders _(Phase 4, Phase 6)_
 - [ ] **Issue tools** — `issue:create`, `issue:comment`, `issue:label` _(Phase 4 Non-Goals)_
 - [ ] **File write tools** — `file:write` beyond output directory _(Phase 1 Non-Goals)_
 - [ ] **Custom side-effect plugin interface** — domain-specific side effects beyond the fixed allowlist _(PRD Decision Point)_
@@ -131,6 +150,6 @@ _Source: repo readiness assessment_
 - [ ] **CLI `registry` stub** — still prints "Not yet implemented"
 - [ ] **Graceful fallback stubs** — several try/except ImportError blocks in cli.py for components that now exist
 - [x] **`.env` pattern in .gitignore** — `.env`, `.env.*`, `*.env` patterns present; `agentry-prd.md` added
-- [ ] **mypy strict errors** — 9 mypy strict errors in `github_actions.py` (consistent with codebase patterns) _(Phase 4 validation)_
+- [x] **mypy strict errors** — resolved all 37 mypy errors across 9 files; mypy now passes cleanly _(Phase 4 validation)_
 - [x] **Delete `executor.py` and `llm/` package** — dead code removed in Phase 5 cleanup
 - [x] **Remove duplicate RunnerProtocol** — unified in Phase 5 SecurityEnvelope cleanup

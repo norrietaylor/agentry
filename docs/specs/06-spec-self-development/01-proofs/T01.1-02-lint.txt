@@ -1,0 +1,7 @@
+Type: cli
+Command: ruff check src/agentry/cli.py
+Expected: All checks passed
+Timestamp: 2026-03-22T00:00:00Z
+Status: PASS
+
+All checks passed!

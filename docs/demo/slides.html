@@ -445,11 +445,11 @@
     <div class="divider"></div>
     <div class="grid-3" style="margin-bottom:32px;">
       <div style="text-align:center">
-        <div class="big-number">5</div>
+        <div class="big-number">6</div>
         <div class="stat-label">Phases complete</div>
       </div>
       <div style="text-align:center">
-        <div class="big-number">1500+</div>
+        <div class="big-number">1580+</div>
         <div class="stat-label">Tests passing</div>
       </div>
       <div style="text-align:center">
@@ -463,10 +463,10 @@
         <span class="tag tag-done">DONE</span> <span class="white">Security envelope &amp; signing</span><br>
         <span class="tag tag-done">DONE</span> <span class="white">Composition engine</span><br>
         <span class="tag tag-done">DONE</span> <span class="white">GitHub Actions binder &amp; CI gen</span><br>
-        <span class="tag tag-done">DONE</span> <span class="white">Agent runtime abstraction</span>
+        <span class="tag tag-done">DONE</span> <span class="white">Agent runtime abstraction</span><br>
+        <span class="tag tag-done">DONE</span> <span class="white">Self-development &amp; dogfooding</span>
       </div>
       <div>
-        <span class="tag tag-next">NEXT</span> <span class="white">Write-side tools</span><br>
         <span class="tag tag-next">NEXT</span> <span class="white">Task board</span><br>
         <span class="tag tag-next">NEXT</span> <span class="white">Human approval gates</span><br>
         <span class="tag tag-next">NEXT</span> <span class="white">Dynamic composition</span><br>
@@ -475,27 +475,30 @@
     </div>
   </div>
 
-  <!-- Slide 9: The Vision -->
+  <!-- Slide 9: Self-Development — Live -->
   <div class="slide" id="s9">
-    <h2>The Vision: Self-Hosting</h2>
+    <h2>Self-Development <span class="accent">&mdash; Live</span></h2>
     <div class="divider"></div>
-    <p style="font-size:1.6rem; color:var(--text); margin-bottom:32px;">Agentry developing itself.</p>
-    <div style="text-align:center; margin:24px 0; line-height:2.8;">
-      <span class="flow-item"><span class="accent">Research</span></span>
-      <span class="flow-arrow">&rarr;</span>
-      <span class="flow-item"><span class="accent">Spec</span></span>
-      <span class="flow-arrow">&rarr;</span>
-      <span class="flow-item"><span class="blue">Plan</span></span>
-      <span class="flow-arrow">&rarr;</span>
-      <span class="flow-item"><span class="blue">Dispatch</span></span>
-      <span class="flow-arrow">&rarr;</span>
-      <span class="flow-item"><span class="green">Implement</span></span>
-      <span class="flow-arrow">&rarr;</span>
-      <span class="flow-item"><span class="green">Validate</span></span>
+    <p style="font-size:1.6rem; color:var(--text); margin-bottom:24px;">Agentry develops itself. Not a vision &mdash; it's running now.</p>
+    <div class="grid-2" style="margin-top:16px;">
+      <div>
+        <h3>What's Working</h3>
+        <ul>
+          <li>Every PR auto-reviewed by <code>code-review.yaml</code></li>
+          <li><code>bug-fix.yaml</code> creates branches &amp; opens PRs</li>
+          <li><code>--input diff=HEAD~1</code> resolves git refs</li>
+          <li><code>pr:create</code> in both local &amp; CI binders</li>
+          <li>Agent PRs labeled <code class="accent">agent-proposed</code></li>
+        </ul>
+      </div>
+      <div>
+        <h3>One Phase Away</h3>
+        <pre style="font-size:0.95rem;"><code>$ agentry run workflows/develop.yaml \
+    --input spec=docs/specs/07-spec.md</code></pre>
+        <p style="margin-top:16px;">Full lifecycle: research &rarr; spec &rarr; plan &rarr; dispatch &rarr; implement &rarr; validate</p>
+        <p style="margin-top:8px;">Remaining: task board, human approval gates, dynamic composition</p>
+      </div>
     </div>
-    <pre style="margin-top:24px;"><code>$ agentry run workflows/develop.yaml \
-    --input spec=docs/specs/07-spec-feature.md</code></pre>
-    <p style="margin-top:16px;">Full development lifecycle as a composed workflow. No external plugins.</p>
   </div>
 
   <!-- Slide 10: Extensibility -->

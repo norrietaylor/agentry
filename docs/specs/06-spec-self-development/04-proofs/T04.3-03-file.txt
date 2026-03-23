@@ -1,0 +1,28 @@
+Type: file
+Check: tests/integration/test_pr_create.py exists and contains the required test cases
+Expected: File exists with 15 test functions covering all 9 specified test cases
+Timestamp: 2026-03-22T00:00:00Z
+
+Verified test functions:
+  TestLocalBinderPrCreate:
+    - test_pr_create_creates_new_branch
+    - test_pr_create_commits_specified_files
+    - test_pr_create_returns_branch_name
+    - test_pr_create_returns_pr_url_from_gh
+    - test_pr_create_refuses_force_push
+    - test_pr_create_raises_for_protected_branch_main
+    - test_pr_create_raises_for_protected_branch_master
+    - test_pr_create_uses_configurable_base_branch
+    - test_pr_create_applies_agent_proposed_label
+
+  TestGitHubActionsBinderPrCreate:
+    - test_pr_create_via_api_returns_created_status
+    - test_pr_create_via_api_returns_pr_url
+    - test_pr_create_raises_for_protected_branch
+    - test_pr_create_handles_403_error_gracefully
+    - test_pr_create_handles_404_error_gracefully
+    - test_pr_create_error_message_mentions_permissions_on_403
+
+File path: tests/integration/test_pr_create.py
+
+Status: PASS

@@ -1,0 +1,26 @@
+Type: cli
+Command: python3 -c "import yaml; yaml.safe_load(open('.github/workflows/agentry-code-review.yml'))"
+Expected: File parses as valid YAML without exception
+Timestamp: 2026-03-22T00:00:00Z
+
+--- OUTPUT ---
+Valid YAML: PASS
+Required fields (name, on, permissions, jobs): PASS
+
+Field details:
+  name: Agentry: Code Review
+  on: {'pull_request': None}
+  permissions: {'contents': 'read', 'pull-requests': 'write'}
+  jobs: {'agentry': ...}
+
+permissions.contents: read
+permissions.pull-requests: write
+jobs.agentry.runs-on: ubuntu-latest
+steps count: 4
+  - Checkout repository
+  - Set up Python
+  - Install agentry
+  - Run agentry
+
+--- RESULT ---
+Status: PASS

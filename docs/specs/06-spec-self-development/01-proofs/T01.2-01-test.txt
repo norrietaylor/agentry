@@ -1,0 +1,52 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_cli.py -x -v
+Expected: All tests pass (42 tests)
+Timestamp: 2026-03-22T00:00:00Z
+
+RESULT: PASS
+
+Output:
+tests/unit/test_cli.py::test_cli_help PASSED
+tests/unit/test_cli.py::test_cli_version PASSED
+tests/unit/test_cli.py::test_validate_command_missing_file PASSED
+tests/unit/test_cli.py::test_validate_command_valid_yaml PASSED
+tests/unit/test_cli.py::test_run_command_missing_file PASSED
+tests/unit/test_cli.py::test_run_command_valid_yaml PASSED
+tests/unit/test_cli.py::test_cli_lists_all_subcommands PASSED
+tests/unit/test_cli.py::test_verbose_flag_accepted PASSED
+tests/unit/test_cli.py::test_config_flag_accepted PASSED
+tests/unit/test_cli.py::test_output_format_json_flag PASSED
+tests/unit/test_cli.py::test_output_format_text_flag PASSED
+tests/unit/test_cli.py::test_output_format_invalid_rejected PASSED
+tests/unit/test_cli.py::test_setup_requires_workflow_path PASSED
+tests/unit/test_cli.py::test_ci_group_shows_help PASSED
+tests/unit/test_cli.py::test_registry_not_yet_implemented PASSED
+tests/unit/test_cli.py::test_setup_help PASSED
+tests/unit/test_cli.py::test_ci_help PASSED
+tests/unit/test_cli.py::test_registry_help PASSED
+tests/unit/test_cli.py::test_validate_help_exits_zero PASSED
+tests/unit/test_cli.py::test_validate_help_contains_example PASSED
+tests/unit/test_cli.py::test_validate_invalid_yaml_exits_one PASSED
+tests/unit/test_cli.py::test_validate_uses_parser_when_available PASSED
+tests/unit/test_cli.py::test_validate_reports_parser_errors PASSED
+tests/unit/test_cli.py::test_validate_json_format PASSED
+tests/unit/test_cli.py::test_run_help_exits_zero PASSED
+tests/unit/test_cli.py::test_run_help_contains_example PASSED
+tests/unit/test_cli.py::test_run_invalid_input_format PASSED
+tests/unit/test_cli.py::test_run_target_option PASSED
+tests/unit/test_cli.py::test_run_stub_text_output PASSED
+tests/unit/test_cli.py::test_cli_is_click_group PASSED
+tests/unit/test_cli.py::test_cli_and_main_are_same_object PASSED
+tests/unit/test_cli.py::test_setup_help_exits_zero PASSED
+tests/unit/test_cli.py::test_setup_help_contains_workflow_path PASSED
+tests/unit/test_cli.py::test_setup_missing_file_exits_one PASSED
+tests/unit/test_cli.py::test_setup_produces_manifest_skip_preflight PASSED
+tests/unit/test_cli.py::test_setup_json_output_skip_preflight PASSED
+tests/unit/test_cli.py::test_setup_manifest_file_created PASSED
+tests/unit/test_cli.py::test_setup_manifest_contains_required_fields PASSED
+tests/unit/test_cli.py::test_run_skip_preflight_help_mentions_flag PASSED
+tests/unit/test_cli.py::test_run_skip_preflight_bypasses_checks PASSED
+tests/unit/test_cli.py::test_run_without_skip_preflight_requires_api_key PASSED
+tests/unit/test_cli.py::test_setup_skip_preflight_help_mentions_flag PASSED
+
+42 passed in 0.87s

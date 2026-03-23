@@ -1,0 +1,17 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_github_binder_tools.py -x -q
+Expected: All existing tests pass (no regressions)
+Timestamp: 2026-03-22T00:00:00Z
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 48 items
+
+tests/unit/test_github_binder_tools.py ................................. [ 68%]
+...............                                                          [100%]
+
+============================== 48 passed in 0.28s ==============================
+Status: PASS

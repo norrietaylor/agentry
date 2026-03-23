@@ -1,0 +1,8 @@
+Type: cli
+Command: ruff check tests/unit/test_git_diff_resolution.py
+Expected: All checks passed (exit code 0)
+Timestamp: 2026-03-22T00:00:00Z
+
+All checks passed!
+
+Status: PASS

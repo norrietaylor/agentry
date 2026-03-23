@@ -1,0 +1,54 @@
+Type: file
+Command: cat .github/workflows/agentry-code-review.yml
+Expected: File contains required fields: name, on, permissions, jobs with correct values
+Timestamp: 2026-03-22T00:00:00Z
+
+--- OUTPUT ---
+name: "Agentry: Code Review"
+
+'on':
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  agentry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install agentry
+        run: pip install .
+
+      - name: Run agentry
+        run: >
+          agentry run workflows/code-review.yaml
+          --input diff=${{ github.event.pull_request.head.sha }}~1
+          --input codebase=.
+          --binder github-actions
+          --output-format json
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+--- CHECKS ---
+name field: PASS (value: "Agentry: Code Review")
+on field: PASS (trigger: pull_request)
+permissions field: PASS (contents: read, pull-requests: write)
+jobs field: PASS (agentry job with 4 steps)
+env ANTHROPIC_API_KEY: PASS (from secrets)
+env GITHUB_TOKEN: PASS (from secrets on run step)
+
+--- RESULT ---
+Status: PASS

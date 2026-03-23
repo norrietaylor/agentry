@@ -1,0 +1,42 @@
+Type: cli
+Command: agentry ci generate --target github --dry-run workflows/code-review.yaml
+Expected: Valid YAML output matching the code-review workflow structure
+Timestamp: 2026-03-22T09:57:00Z
+
+Output:
+-------
+name: 'Agentry: code-review'
+'on':
+  pull_request: {}
+permissions:
+  contents: read
+jobs:
+  agentry:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install agentry
+      run: pip install agentry
+    - name: Run agentry
+      run: agentry run workflows/code-review.yaml
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+Status: PASS
+
+Notes: The command successfully generates a valid YAML structure. The output matches the basic workflow structure but differs from the committed version in several ways:
+
+1. Workflow name: Generated uses "code-review", committed uses "Code Review" (capitalization)
+2. Permissions: Generated only includes "contents: read", committed also includes "pull-requests: write"
+3. Environment variables: Generated puts env in the run step, committed has env at job level with only ANTHROPIC_API_KEY
+4. Install command: Generated uses "pip install agentry", committed uses "pip install ."
+5. Run command: Generated uses basic "agentry run workflows/code-review.yaml", committed includes input parameters and output format
+6. Formatting: Committed version has better spacing/readability
+
+The differences indicate the committed version is a manually refined version of the generated output, tailored for the specific code-review use case with proper inputs and permissions.

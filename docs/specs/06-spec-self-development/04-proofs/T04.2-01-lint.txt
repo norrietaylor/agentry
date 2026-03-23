@@ -1,0 +1,6 @@
+Type: cli
+Command: ruff check src/agentry/binders/github_actions.py
+Expected: All checks passed
+Timestamp: 2026-03-22T00:00:00Z
+All checks passed!
+Status: PASS

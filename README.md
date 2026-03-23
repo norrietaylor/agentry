@@ -36,7 +36,11 @@ agentry run workflows/triage.yaml \
   --input repository-ref=.
 ```
 
-Agentry delegates execution to the configured agent runtime (Claude Code by default). The agent runtime handles model selection and API authentication.
+Agentry resolves inputs (including git refs like `HEAD~1` for diff inputs), selects the appropriate runner, launches the agent runtime, enforces the tool manifest, and validates the output against the declared schema. Execution records are written to `.agentry/runs/` for auditability.
+
+### Self-development
+
+Agentry reviews its own PRs. The `.github/workflows/agentry-code-review.yml` workflow runs `agentry run workflows/code-review.yaml` on every pull request, posting findings as PR comments. The bug-fix workflow can create branches and open PRs with proposed fixes — all requiring human review before merge.
 
 ### 3. Generate a GitHub Actions pipeline
 
@@ -202,9 +206,11 @@ The generated YAML declares minimal token permissions derived from the workflow'
 |----------|-------------|
 | `workflows/code-review.yaml` | PR diff review for security, performance, and style |
 | `workflows/triage.yaml` | Issue classification and routing |
-| `workflows/bug-fix.yaml` | Bug diagnosis and fix suggestion |
+| `workflows/bug-fix.yaml` | Bug diagnosis and fix suggestion (creates PRs via `pr:create`) |
 | `workflows/task-decompose.yaml` | Issue decomposition into implementation tasks |
 | `workflows/planning-pipeline.yaml` | Composed pipeline: triage → decompose → summarize |
+
+All workflows execute end-to-end via `agentry run`, producing structured JSON output. The `--input diff=HEAD~1` syntax automatically resolves git refs to diff content.
 
 ## Development
 

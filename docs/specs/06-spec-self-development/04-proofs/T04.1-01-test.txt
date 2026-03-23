@@ -1,0 +1,51 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.0, pytest-8.4.2, pluggy-1.6.0 -- /opt/homebrew/opt/python@3.14/bin/python3.14
+cachedir: .pytest_cache
+rootdir: /Users/norrie/code/agentry
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, anyio-4.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 40 items
+
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_is_environment_binder PASSED [  2%]
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_has_resolve_inputs PASSED [  5%]
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_has_bind_tools PASSED [  7%]
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_has_map_outputs PASSED [ 10%]
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_has_generate_pipeline_config PASSED [ 12%]
+tests/unit/test_local_binder.py::TestProtocolConformance::test_local_binder_name PASSED [ 15%]
+tests/unit/test_local_binder.py::TestGeneratePipelineConfig::test_raises_not_implemented PASSED [ 17%]
+tests/unit/test_local_binder.py::TestGeneratePipelineConfig::test_error_message_mentions_phase_3 PASSED [ 20%]
+tests/unit/test_local_binder.py::TestResolveInputsString::test_string_input_passthrough PASSED [ 22%]
+tests/unit/test_local_binder.py::TestResolveInputsString::test_multiple_string_inputs PASSED [ 25%]
+tests/unit/test_local_binder.py::TestResolveInputsString::test_missing_optional_input_returns_none PASSED [ 27%]
+tests/unit/test_local_binder.py::TestResolveInputsString::test_missing_required_input_raises_value_error PASSED [ 30%]
+tests/unit/test_local_binder.py::TestResolveInputsString::test_error_message_suggests_fix PASSED [ 32%]
+tests/unit/test_local_binder.py::TestResolveInputsGitDiff::test_git_diff_on_non_git_dir_raises PASSED [ 35%]
+tests/unit/test_local_binder.py::TestResolveInputsGitDiff::test_git_diff_on_git_dir_returns_string PASSED [ 37%]
+tests/unit/test_local_binder.py::TestResolveInputsGitDiff::test_git_diff_output_contains_diff_content PASSED [ 40%]
+tests/unit/test_local_binder.py::TestResolveInputsGitDiff::test_git_diff_empty_repo_returns_string PASSED [ 42%]
+tests/unit/test_local_binder.py::TestResolveInputsRepositoryRef::test_repository_ref_on_non_git_dir_raises PASSED [ 45%]
+tests/unit/test_local_binder.py::TestResolveInputsRepositoryRef::test_repository_ref_on_git_dir_returns_absolute_path PASSED [ 47%]
+tests/unit/test_local_binder.py::TestBindTools::test_supported_tools_are_bound PASSED [ 50%]
+tests/unit/test_local_binder.py::TestBindTools::test_bound_tool_is_callable PASSED [ 52%]
+tests/unit/test_local_binder.py::TestBindTools::test_unsupported_tool_raises PASSED [ 55%]
+tests/unit/test_local_binder.py::TestBindTools::test_unsupported_tool_error_message PASSED [ 57%]
+tests/unit/test_local_binder.py::TestBindTools::test_repository_read_raises_type_error_without_required_args PASSED [ 60%]
+tests/unit/test_local_binder.py::TestBindTools::test_empty_tool_list PASSED [ 62%]
+tests/unit/test_local_binder.py::TestMapOutputs::test_output_paths_under_agentry_runs PASSED [ 65%]
+tests/unit/test_local_binder.py::TestMapOutputs::test_output_key_present PASSED [ 67%]
+tests/unit/test_local_binder.py::TestMapOutputs::test_execution_record_key_present PASSED [ 70%]
+tests/unit/test_local_binder.py::TestMapOutputs::test_execution_record_filename PASSED [ 72%]
+tests/unit/test_local_binder.py::TestMapOutputs::test_declared_output_paths_included PASSED [ 75%]
+tests/unit/test_local_binder.py::TestAssertGitRepo::test_passes_for_git_directory PASSED [ 77%]
+tests/unit/test_local_binder.py::TestAssertGitRepo::test_raises_for_non_git_directory PASSED [ 80%]
+tests/unit/test_local_binder.py::TestAssertGitRepo::test_error_contains_path PASSED [ 82%]
+tests/unit/test_local_binder.py::TestAssertGitRepo::test_error_message_is_helpful PASSED [ 85%]
+tests/unit/test_local_binder.py::TestRegistry::test_discover_binders_always_has_local PASSED [ 87%]
+tests/unit/test_local_binder.py::TestRegistry::test_discover_binders_local_is_local_binder_class PASSED [ 90%]
+tests/unit/test_local_binder.py::TestRegistry::test_get_binder_default_returns_local PASSED [ 92%]
+tests/unit/test_local_binder.py::TestRegistry::test_get_binder_local_name_returns_local PASSED [ 95%]
+tests/unit/test_local_binder.py::TestRegistry::test_get_binder_unknown_name_raises_key_error PASSED [ 97%]
+tests/unit/test_local_binder.py::TestRegistry::test_get_binder_error_message_mentions_name PASSED [100%]
+
+============================== 40 passed in 0.56s ==============================

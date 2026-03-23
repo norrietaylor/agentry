@@ -1,0 +1,50 @@
+Type: test
+Command: python3 -m pytest tests/unit/test_ci_generate_code_review.py -v
+Expected: All 24 unit tests pass
+Timestamp: 2026-03-22T09:58:00Z
+
+Output:
+-------
+============================== 24 passed in 0.16s ==============================
+
+Test Summary:
+- test_generate_pipeline_config_basic_structure PASSED
+- test_generate_pipeline_config_workflow_name_in_name_field PASSED
+- test_generate_pipeline_config_pull_request_trigger PASSED
+- test_generate_pipeline_config_default_permissions_includes_contents_read PASSED
+- test_generate_pipeline_config_pr_comment_tool_adds_pull_requests_write PASSED
+- test_generate_pipeline_config_pr_review_tool_adds_pull_requests_write PASSED
+- test_generate_pipeline_config_jobs_has_agentry_job PASSED
+- test_generate_pipeline_config_agentry_job_runs_on_ubuntu_latest PASSED
+- test_generate_pipeline_config_agentry_job_has_steps PASSED
+- test_generate_pipeline_config_steps_include_checkout PASSED
+- test_generate_pipeline_config_steps_include_setup_python PASSED
+- test_generate_pipeline_config_setup_python_uses_version_5 PASSED
+- test_generate_pipeline_config_setup_python_specifies_python_3_12 PASSED
+- test_generate_pipeline_config_steps_include_install PASSED
+- test_generate_pipeline_config_steps_include_run_agentry PASSED
+- test_generate_pipeline_config_run_step_includes_workflow_path PASSED
+- test_generate_pipeline_config_run_step_env_includes_anthropic_api_key PASSED
+- test_generate_pipeline_config_run_step_env_includes_github_token PASSED
+- test_generate_pipeline_config_with_multiple_triggers PASSED
+- test_generate_pipeline_config_with_schedule_trigger PASSED
+- test_generate_pipeline_config_structure_serializable_to_yaml PASSED
+- test_generate_pipeline_config_with_pr_create_tool PASSED
+- test_generate_pipeline_config_default_workflow_path PASSED
+- test_generate_pipeline_config_env_section_exists PASSED
+
+Status: PASS
+
+Notes: All 24 unit tests for GitHubActionsBinder.generate_pipeline_config() pass successfully. The tests cover:
+
+1. Basic structure validation (name, on, permissions, jobs sections)
+2. Workflow name formatting with "Agentry:" prefix
+3. Trigger configuration (pull_request, push, schedule, multiple triggers)
+4. Permission derivation based on tool declarations
+5. Job configuration (runs-on, steps)
+6. Step validation (checkout, setup-python, install, run agentry)
+7. Environment variable injection in run step
+8. Workflow path parameter handling
+9. YAML serializability
+
+These tests ensure the generate_pipeline_config() method produces correct GitHub Actions workflow structure for code-review and other workflows.

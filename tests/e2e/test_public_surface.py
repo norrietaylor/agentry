@@ -403,7 +403,7 @@ def test_mypy_runs_without_crash() -> None:
     # mypy may report type errors but should not crash (exit 2 = crash)
     assert result.returncode in (0, 1), f"mypy crashed:\n{result.stdout}"
     # Verify it actually checked files
-    assert "checked" in result.stdout or "error" in result.stdout
+    assert "checked" in result.stdout or "error" in result.stdout or "Success" in result.stdout
 
 
 @pytest.mark.e2e
