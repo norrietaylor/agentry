@@ -247,6 +247,10 @@ Agentry (orchestration)
 
 The binder system is pluggable via Python entry points (`agentry.binders` group). Adding a new CI target means implementing the `EnvironmentBinder` protocol. Adding a new agent runtime means implementing the `AgentProtocol` — the workflow definition only changes the `agent.runtime` field.
 
+## Slides
+
+An interactive slide deck covering the architecture, security model, and demo is available at [docs/demo/slides.html](docs/demo/slides.html). Works on desktop (keyboard/click navigation) and mobile (swipe).
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
