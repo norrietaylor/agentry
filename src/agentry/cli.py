@@ -812,12 +812,18 @@ def run(
             _system_prompt = f"You are {_identity.name}. {_identity.description}"
 
         # 9. Execute through the envelope.
+        # Extract output schema from the workflow definition.
+        _output_schema: dict[str, Any] | None = None
+        if _loaded_workflow.output and _loaded_workflow.output.schema_def:
+            _output_schema = _loaded_workflow.output.schema_def
+
         _envelope_result: EnvelopeResult = _envelope.execute(
             system_prompt=_system_prompt,
             resolved_inputs=_resolved_inputs,
             available_tools=list(_tool_bindings.keys()),
             agent_name=_agent_runtime,
             agent_config=_sw_agent_kwargs,
+            output_schema=_output_schema,
         )
 
         # 10. Handle the result.
