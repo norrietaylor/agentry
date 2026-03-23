@@ -42,6 +42,7 @@ Setup:
 Concrete checks:
 - :class:`~agentry.security.checks.AgentAvailabilityCheck` -- Validates agent binary.
 - :class:`~agentry.security.checks.AnthropicAPIKeyCheck` -- Validates API key.
+- :class:`~agentry.security.checks.ClaudeCodeAuthCheck` -- Validates Claude Code auth.
 - :class:`~agentry.security.checks.DockerAvailableCheck` -- Validates Docker.
 - :class:`~agentry.security.checks.FilesystemMountsCheck` -- Validates paths.
 """
@@ -50,6 +51,7 @@ from agentry.runners.protocol import RunnerProtocol
 from agentry.security.checks import (
     AgentAvailabilityCheck,
     AnthropicAPIKeyCheck,
+    ClaudeCodeAuthCheck,
     DockerAvailableCheck,
     FilesystemMountsCheck,
 )
@@ -93,6 +95,7 @@ __all__ = [
     # Concrete checks
     "AgentAvailabilityCheck",
     "AnthropicAPIKeyCheck",
+    "ClaudeCodeAuthCheck",
     "DockerAvailableCheck",
     "FilesystemMountsCheck",
 ]

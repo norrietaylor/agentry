@@ -1,10 +1,12 @@
 """Concrete preflight check implementations.
 
-Provides five concrete preflight checks:
+Provides six concrete preflight checks:
 
 1. ``AnthropicAPIKeyCheck`` — verifies the ``ANTHROPIC_API_KEY`` environment
    variable is set and the key is accepted by the Anthropic API (GET
    /v1/models).
+1b. ``ClaudeCodeAuthCheck`` — passes if ``ANTHROPIC_API_KEY`` is set **or**
+   the ``claude`` CLI is on PATH (OAuth, GitHub App, etc.).
 2. ``DockerAvailableCheck`` — verifies the Docker daemon is running and
    accessible; only relevant when ``trust == "sandboxed"``.
 3. ``FilesystemMountsCheck`` — verifies that every path declared in
@@ -202,6 +204,85 @@ class AnthropicAPIKeyCheck:
                 message=f"Network error during API key validation: {exc}.",
                 remediation="Check network connectivity.",
             )
+
+
+# ---------------------------------------------------------------------------
+# ClaudeCodeAuthCheck
+# ---------------------------------------------------------------------------
+
+
+class ClaudeCodeAuthCheck:
+    """Preflight check for Claude Code authentication.
+
+    Passes if **any** of the following hold:
+
+    1. ``ANTHROPIC_API_KEY`` is set (direct API access).
+    2. ``CLAUDE_CODE_OAUTH_TOKEN`` is set (Claude GitHub App or OAuth token).
+    3. The ``claude`` CLI is on PATH (OAuth, GitHub App, or other managed auth).
+
+    This is the recommended preflight check when the agent runtime is
+    ``claude-code``, because Claude Code supports multiple authentication
+    methods beyond raw API keys (OAuth via ``claude login``, the Claude
+    GitHub App in CI, etc.).
+    """
+
+    _OAUTH_TOKEN_VAR = "CLAUDE_CODE_OAUTH_TOKEN"
+
+    def __init__(self, env_var: str = "ANTHROPIC_API_KEY") -> None:
+        self._env_var = env_var
+
+    @property
+    def name(self) -> str:
+        """Name of this preflight check."""
+        return "claude_code_auth"
+
+    def run(self) -> _CheckResult:
+        """Check for any valid Claude Code authentication method."""
+        # Method 1: ANTHROPIC_API_KEY is set.
+        key = os.environ.get(self._env_var, "")
+        if key:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message=f"{self._env_var} is set.",
+            )
+
+        # Method 2: CLAUDE_CODE_OAUTH_TOKEN is set (Claude GitHub App, OAuth).
+        oauth_token = os.environ.get(self._OAUTH_TOKEN_VAR, "")
+        if oauth_token:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message=f"{self._OAUTH_TOKEN_VAR} is set.",
+            )
+
+        # Method 3: claude CLI is available (handles its own auth via
+        # OAuth, GitHub App, etc.).
+        claude_path = shutil.which("claude")
+        if claude_path:
+            return _CheckResult(
+                passed=True,
+                name=self.name,
+                message=(
+                    f"{self._env_var} is not set, but claude CLI is "
+                    f"available at {claude_path}. Claude Code will use "
+                    "its own authentication (OAuth, GitHub App, etc.)."
+                ),
+            )
+
+        return _CheckResult(
+            passed=False,
+            name=self.name,
+            message=(
+                f"No Claude Code authentication found. {self._env_var} is "
+                "not set and claude CLI is not on PATH."
+            ),
+            remediation=(
+                "Either export ANTHROPIC_API_KEY=<your-key>, or install "
+                "and authenticate Claude Code (claude login), or install "
+                "the Claude GitHub App for CI usage."
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------

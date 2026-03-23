@@ -256,6 +256,7 @@ class SecurityEnvelope:
         agent_name: str = "claude-code",
         agent_config: dict[str, Any] | None = None,
         timeout: float | None = None,
+        output_schema: dict[str, Any] | None = None,
     ) -> EnvelopeResult:
         """Execute the agent within the security envelope.
 
@@ -327,6 +328,7 @@ class SecurityEnvelope:
                 agent_name=agent_name,
                 agent_config=agent_config or {},
                 timeout=timeout,
+                output_schema=output_schema,
             )
             execution_result = self._runner.execute(runner_context, run_agent_config)
             result.execution_result = execution_result

@@ -511,7 +511,7 @@ def run(
     try:
         from agentry.security.checks import (
             AgentAvailabilityCheck,
-            AnthropicAPIKeyCheck,
+            ClaudeCodeAuthCheck,
             DockerAvailableCheck,
             FilesystemMountsCheck,
             GitHubTokenScopeCheck,
@@ -526,7 +526,7 @@ def run(
         _checks: list[Any] = []
         if not skip_preflight:
             _checks = [
-                AnthropicAPIKeyCheck(),
+                ClaudeCodeAuthCheck(),
                 DockerAvailableCheck(trust=_loaded_workflow.safety.trust.value),
                 FilesystemMountsCheck(
                     read_paths=list(_loaded_workflow.safety.filesystem.read),
@@ -727,7 +727,7 @@ def run(
         from agentry.runners.detector import RunnerDetector
         from agentry.security.checks import (
             AgentAvailabilityCheck,
-            AnthropicAPIKeyCheck,
+            ClaudeCodeAuthCheck,
             DockerAvailableCheck,
             FilesystemMountsCheck,
             GitHubTokenScopeCheck,
@@ -760,7 +760,7 @@ def run(
         _envelope_checks: list[Any] = []
         if not skip_preflight:
             _envelope_checks = [
-                AnthropicAPIKeyCheck(),
+                ClaudeCodeAuthCheck(),
                 DockerAvailableCheck(trust=_loaded_workflow.safety.trust.value),
                 FilesystemMountsCheck(
                     read_paths=list(_loaded_workflow.safety.filesystem.read),
@@ -812,12 +812,18 @@ def run(
             _system_prompt = f"You are {_identity.name}. {_identity.description}"
 
         # 9. Execute through the envelope.
+        # Extract output schema from the workflow definition.
+        _output_schema: dict[str, Any] | None = None
+        if _loaded_workflow.output and _loaded_workflow.output.schema_def:
+            _output_schema = _loaded_workflow.output.schema_def
+
         _envelope_result: EnvelopeResult = _envelope.execute(
             system_prompt=_system_prompt,
             resolved_inputs=_resolved_inputs,
             available_tools=list(_tool_bindings.keys()),
             agent_name=_agent_runtime,
             agent_config=_sw_agent_kwargs,
+            output_schema=_output_schema,
         )
 
         # 10. Handle the result.
@@ -851,13 +857,9 @@ def run(
             )
             logger.info("Execution record written: %s", _record_path)
 
-            # Write output.json alongside execution-record.json.
-            _output_paths = _active_binder.map_outputs(
-                output_declarations={},
-                target_dir=target,
-                run_id=_run_id,
-            )
-            _output_json_path = Path(_output_paths.get("output", str(_runs_base / _run_id / "output.json")))
+            # Write output.json BEFORE map_outputs, because map_outputs
+            # may post the file content as a PR comment (GitHub Actions binder).
+            _output_json_path = _runs_base / _run_id / "output.json"
             _output_json_path.parent.mkdir(parents=True, exist_ok=True)
             _output_payload_record: dict[str, object] = {
                 "execution_id": _run_id,
@@ -866,6 +868,13 @@ def run(
             }
             _output_json_path.write_text(_json.dumps(_output_payload_record, indent=2), encoding="utf-8")
             logger.info("Output record written: %s", _output_json_path)
+
+            # Now map outputs (which may read the file and post as PR comment).
+            _active_binder.map_outputs(
+                output_declarations={},
+                target_dir=target,
+                run_id=_run_id,
+            )
         except Exception as _record_exc:  # noqa: BLE001
             logger.warning("Failed to write execution record: %s", _record_exc)
 
@@ -878,6 +887,9 @@ def run(
                 "output": _exec_result.output if _exec_result else None,
                 "token_usage": _exec_result.token_usage if _exec_result else {},
             }
+            # Include raw stdout when output is empty for diagnostics.
+            if _exec_result and not _exec_result.output and _exec_result.stdout:
+                _output_payload["raw_stdout"] = _exec_result.stdout[:2000]
             click.echo(json.dumps(_output_payload))
         else:
             click.echo(f"Workflow: {workflow_path}")
@@ -983,14 +995,14 @@ def setup(
 
     # Build preflight checks appropriate for the trust level.
     from agentry.security.checks import (
-        AnthropicAPIKeyCheck,
+        ClaudeCodeAuthCheck,
         DockerAvailableCheck,
         FilesystemMountsCheck,
     )
     checks: list[Any] = []
     if not skip_preflight:
         checks = [
-            AnthropicAPIKeyCheck(),
+            ClaudeCodeAuthCheck(),
             DockerAvailableCheck(trust=workflow.safety.trust.value),
             FilesystemMountsCheck(
                 read_paths=list(workflow.safety.filesystem.read),

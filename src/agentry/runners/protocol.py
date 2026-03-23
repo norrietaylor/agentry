@@ -118,6 +118,7 @@ class AgentConfig:
     agent_name: str = "claude-code"
     agent_config: dict[str, Any] = field(default_factory=dict)
     timeout: float | None = None
+    output_schema: dict[str, Any] | None = None
 
 
 @dataclass

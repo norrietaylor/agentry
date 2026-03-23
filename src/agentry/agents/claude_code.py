@@ -50,9 +50,12 @@ class ClaudeCodeAgent:
         self,
         model: str = "claude-sonnet-4-20250514",
         env_overrides: dict[str, str] | None = None,
+        max_iterations: int | None = None,
+        **kwargs: object,
     ) -> None:
         self._model = model
         self._env_overrides = env_overrides or {}
+        self._max_turns = max_iterations
 
     # ------------------------------------------------------------------
     # Public API
@@ -145,6 +148,9 @@ class ClaudeCodeAgent:
 
         cmd.extend(["--model", self._model])
 
+        if self._max_turns is not None:
+            cmd.extend(["--max-turns", str(self._max_turns)])
+
         if agent_task.output_schema is not None:
             cmd.extend(["--output-format", "json"])
 
@@ -196,8 +202,12 @@ class ClaudeCodeAgent:
                 # Extract token usage from the metadata envelope.
                 usage_data = parsed.get("usage", {})
                 if usage_data:
+                    # Include cache tokens in the total input count.
+                    _input = int(usage_data.get("input_tokens", 0))
+                    _cache_create = int(usage_data.get("cache_creation_input_tokens", 0))
+                    _cache_read = int(usage_data.get("cache_read_input_tokens", 0))
                     token_usage = TokenUsage(
-                        input_tokens=int(usage_data.get("input_tokens", 0)),
+                        input_tokens=_input + _cache_create + _cache_read,
                         output_tokens=int(usage_data.get("output_tokens", 0)),
                     )
 
@@ -205,18 +215,30 @@ class ClaudeCodeAgent:
                 result_field = parsed.get("result")
                 if isinstance(result_field, dict):
                     output = result_field
-                elif isinstance(result_field, str):
+                elif isinstance(result_field, str) and result_field.strip():
                     # Try to parse inner JSON string.
                     try:
                         inner = json.loads(result_field)
                         if isinstance(inner, dict):
                             output = inner
+                        elif isinstance(inner, list):
+                            output = {"result": inner}
+                        else:
+                            output = {"raw_response": result_field}
                     except (json.JSONDecodeError, ValueError):
-                        pass
+                        # Preserve the text response so it's not silently lost.
+                        output = {"raw_response": result_field}
+                elif isinstance(result_field, list):
+                    output = {"result": result_field}
 
-                # Fallback: if no result key treat the whole envelope as output.
-                if output is None and isinstance(parsed, dict) and "result" not in parsed:
-                    output = parsed
+                # Fallback: when result is None/empty, capture the full
+                # envelope metadata so callers can inspect stop_reason etc.
+                if output is None:
+                    output = {
+                        "raw_response": result_field or "",
+                        "stop_reason": parsed.get("stop_reason", ""),
+                        "subtype": parsed.get("subtype", ""),
+                    }
 
             except (json.JSONDecodeError, ValueError) as exc:
                 error = f"Failed to parse JSON output: {exc}; raw: {stdout[:200]}"

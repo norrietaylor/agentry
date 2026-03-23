@@ -275,6 +275,70 @@
 
   .comparison-table td { color: var(--text); }
   .comparison-table .dim { color: #555; }
+
+  /* ---- Mobile / narrow viewport ---- */
+  @media (max-width: 768px) {
+    .slide {
+      padding: 40px 24px;
+      overflow-y: auto;
+    }
+
+    h1 { font-size: 1.8rem; margin-bottom: 16px; }
+    h2 { font-size: 1.5rem; margin-bottom: 14px; }
+    h3 { font-size: 1.1rem; margin-bottom: 8px; }
+    p, li { font-size: 1rem; line-height: 1.5; }
+    .subtitle { font-size: 1.1rem; }
+
+    pre {
+      padding: 16px;
+      font-size: 0.8rem;
+      border-radius: 8px;
+      margin: 12px 0;
+    }
+    pre code { font-size: 0.8rem; }
+    code { font-size: 0.8em; padding: 1px 5px; }
+
+    .grid-2, .grid-3 {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    .card { padding: 20px; }
+    .card p { font-size: 1rem; }
+
+    .big-number { font-size: 2.2rem; }
+    .stat-label { font-size: 0.9rem; }
+
+    .tag { font-size: 0.75rem; padding: 3px 10px; }
+
+    .arch-diagram { font-size: 0.9rem; line-height: 1.7; }
+    .arch-diagram .layer { padding: 8px 14px; }
+    .layer-2 { margin-left: 20px; }
+    .layer-3 { margin-left: 40px; }
+    .layer-4 { margin-left: 60px; }
+
+    .flow-item { font-size: 0.9rem; padding: 6px 12px; }
+    .flow-arrow { font-size: 1rem; margin: 0 6px; }
+
+    .comparison-table th, .comparison-table td {
+      padding: 10px 12px;
+      font-size: 0.9rem;
+    }
+    .comparison-table th { font-size: 0.75rem; }
+
+    ul li { padding-left: 20px; }
+    ul li::before { top: 12px; width: 8px; height: 8px; }
+
+    .divider { width: 40px; height: 3px; margin: 16px 0; }
+    .slide-number { right: 16px; bottom: 12px; }
+
+    .logo-text { font-size: 1rem; }
+  }
+
+  /* Touch swipe support */
+  @media (pointer: coarse) {
+    body { touch-action: pan-y; }
+  }
 </style>
 </head>
 <body>
@@ -288,7 +352,7 @@
     </div>
     <h1>Portable Agentic<br>Workflow Orchestration</h1>
     <div class="divider"></div>
-    <p style="font-size:1.6rem;">Define AI agent workflows once.<br>Run them identically on your laptop and in CI.</p>
+    <p class="subtitle">Define AI agent workflows once.<br>Run them identically on your laptop and in CI.</p>
     <p style="margin-top:32px; font-size:1.1rem; color:#555;">github.com/norrietaylor/agentry &mdash; Apache 2.0</p>
   </div>
 
@@ -576,6 +640,22 @@ gitlab =
     if (e.clientX > window.innerWidth / 2) show(current + 1);
     else show(current - 1);
   });
+
+  // Touch swipe navigation
+  let touchStartX = 0;
+  let touchStartY = 0;
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+    touchStartY = e.changedTouches[0].screenY;
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].screenX - touchStartX;
+    const dy = e.changedTouches[0].screenY - touchStartY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      if (dx < 0) show(current + 1);
+      else show(current - 1);
+    }
+  }, { passive: true });
 
   show(0);
 </script>
