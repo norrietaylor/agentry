@@ -28,6 +28,7 @@ model:
     backoff: exponential
 
 safety:
+  trust: elevated
   resources:
     timeout: 180
 

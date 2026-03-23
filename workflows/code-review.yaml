@@ -32,6 +32,7 @@ agent:
   max_iterations: 20
 
 safety:
+  trust: elevated
   resources:
     timeout: 300
 
