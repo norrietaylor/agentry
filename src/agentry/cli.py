@@ -884,6 +884,9 @@ def run(
                 "output": _exec_result.output if _exec_result else None,
                 "token_usage": _exec_result.token_usage if _exec_result else {},
             }
+            # Include raw stdout when output is empty for diagnostics.
+            if _exec_result and not _exec_result.output and _exec_result.stdout:
+                _output_payload["raw_stdout"] = _exec_result.stdout[:2000]
             click.echo(json.dumps(_output_payload))
         else:
             click.echo(f"Workflow: {workflow_path}")
