@@ -218,7 +218,10 @@ class ClaudeCodeAgent:
                         if isinstance(inner, dict):
                             output = inner
                     except (json.JSONDecodeError, ValueError):
-                        pass
+                        # Preserve the text response so it's not silently lost.
+                        output = {"raw_response": result_field}
+                elif isinstance(result_field, list):
+                    output = {"result": result_field}
 
                 # Fallback: if no result key treat the whole envelope as output.
                 if output is None and isinstance(parsed, dict) and "result" not in parsed:
