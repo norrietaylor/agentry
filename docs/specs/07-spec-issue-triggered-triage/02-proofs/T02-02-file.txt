@@ -1,0 +1,17 @@
+Type: file
+Description: feature-implement-system-prompt.md exists and contains all required instructions
+Command: cat workflows/prompts/feature-implement-system-prompt.md
+Timestamp: 2026-03-27T00:00:00Z
+
+--- VERIFICATION ---
+Checks:
+  File exists at workflows/prompts/feature-implement-system-prompt.md: PASS
+  Instructs agent to read issue body and planning-pipeline comments: PASS
+  Instructs implementability assessment (<=5 files, <=500 lines heuristic): PASS
+  If implementable: implement with tests, commit, open PR with agent-proposed label, comment on issue: PASS
+  If too large: create scoped sub-issues with category:feature + agent-decomposed labels: PASS
+  If too large: apply agent-decomposed label to parent issue via issue:label: PASS
+  If too large: comment on parent issue explaining decomposition: PASS
+  Output JSON format documented for both action=implemented and action=decomposed: PASS
+
+Status: PASS
