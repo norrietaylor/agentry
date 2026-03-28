@@ -105,14 +105,10 @@ class GitHubActionsBinder:
         )
 
         # Parse the event payload JSON on construction.
-        self._event_payload: dict[str, Any] = self._load_event_payload(
-            self._event_path
-        )
+        self._event_payload: dict[str, Any] = self._load_event_payload(self._event_path)
 
         # Extract PR number when the event is a pull_request event.
-        self._pr_number: int | None = self._extract_pr_number(
-            self._event_name, self._event_payload
-        )
+        self._pr_number: int | None = self._extract_pr_number(self._event_name, self._event_payload)
 
         # Extract issue number when the event is an issues event.
         self._issue_number: int | None = self._extract_issue_number(
@@ -255,9 +251,7 @@ class GitHubActionsBinder:
 
         # 2. workflow_dispatch: check event payload inputs.
         if self._event_name == "workflow_dispatch":
-            dispatch_inputs: dict[str, Any] = self._event_payload.get(
-                "inputs", {}
-            )
+            dispatch_inputs: dict[str, Any] = self._event_payload.get("inputs", {})
             if name in dispatch_inputs:
                 return str(dispatch_inputs[name])
 
@@ -435,8 +429,7 @@ class GitHubActionsBinder:
                 else:
                     remediation = "Check GitHub API status and token permissions."
                 raise RuntimeError(
-                    f"{status} error posting PR comment: {body_snippet}. "
-                    f"{remediation}"
+                    f"{status} error posting PR comment: {body_snippet}. {remediation}"
                 ) from exc
             return cast(dict[str, Any], response.json())
 
@@ -515,8 +508,7 @@ class GitHubActionsBinder:
                 else:
                     remediation = "Check GitHub API status and token permissions."
                 raise RuntimeError(
-                    f"{status} error creating PR review: {body_snippet}. "
-                    f"{remediation}"
+                    f"{status} error creating PR review: {body_snippet}. {remediation}"
                 ) from exc
             return cast(dict[str, Any], response.json())
 
@@ -699,8 +691,7 @@ class GitHubActionsBinder:
                 else:
                     remediation = "Check GitHub API status and token permissions."
                 raise RuntimeError(
-                    f"{status} error creating PR: {body_snippet}. "
-                    f"{remediation}"
+                    f"{status} error creating PR: {body_snippet}. {remediation}"
                 ) from exc
 
         pr_create.__name__ = "pr_create"
@@ -735,10 +726,7 @@ class GitHubActionsBinder:
                     "issue:comment requires an issues event, but the current "
                     "event does not have an issue number."
                 )
-            url = (
-                f"https://api.github.com/repos/{repository}"
-                f"/issues/{issue_number}/comments"
-            )
+            url = f"https://api.github.com/repos/{repository}/issues/{issue_number}/comments"
             try:
                 response = httpx.post(
                     url,
@@ -772,8 +760,7 @@ class GitHubActionsBinder:
                 else:
                     remediation = "Check GitHub API status and token permissions."
                 raise RuntimeError(
-                    f"{status} error posting issue comment: {body_snippet}. "
-                    f"{remediation}"
+                    f"{status} error posting issue comment: {body_snippet}. {remediation}"
                 ) from exc
             return cast(dict[str, Any], response.json())
 
@@ -809,10 +796,7 @@ class GitHubActionsBinder:
                     "issue:label requires an issues event, but the current "
                     "event does not have an issue number."
                 )
-            url = (
-                f"https://api.github.com/repos/{repository}"
-                f"/issues/{issue_number}/labels"
-            )
+            url = f"https://api.github.com/repos/{repository}/issues/{issue_number}/labels"
             try:
                 response = httpx.post(
                     url,
@@ -851,8 +835,7 @@ class GitHubActionsBinder:
                 else:
                     remediation = "Check GitHub API status and token permissions."
                 raise RuntimeError(
-                    f"{status} error adding issue labels: {body_snippet}. "
-                    f"{remediation}"
+                    f"{status} error adding issue labels: {body_snippet}. {remediation}"
                 ) from exc
             return cast(dict[str, Any], response.json())
 
@@ -994,10 +977,7 @@ class GitHubActionsBinder:
             RuntimeError: On GitHub API errors with HTTP status, response body
                 snippet, and remediation hint.
         """
-        url = (
-            f"https://api.github.com/repos/{self._repository}"
-            f"/issues/{self._pr_number}/comments"
-        )
+        url = f"https://api.github.com/repos/{self._repository}/issues/{self._pr_number}/comments"
         try:
             response = httpx.post(
                 url,
@@ -1031,8 +1011,7 @@ class GitHubActionsBinder:
             else:
                 remediation = "Check GitHub API status and token permissions."
             raise RuntimeError(
-                f"{status} error posting output PR comment: {body_snippet}. "
-                f"{remediation}"
+                f"{status} error posting output PR comment: {body_snippet}. {remediation}"
             ) from exc
         return cast(dict[str, Any], response.json())
 
@@ -1252,9 +1231,7 @@ class GitHubActionsBinder:
         return payload
 
     @staticmethod
-    def _extract_pr_number(
-        event_name: str, payload: dict[str, Any]
-    ) -> int | None:
+    def _extract_pr_number(event_name: str, payload: dict[str, Any]) -> int | None:
         """Extract the pull request number from a ``pull_request`` event payload.
 
         Args:
@@ -1274,9 +1251,7 @@ class GitHubActionsBinder:
         return None
 
     @staticmethod
-    def _extract_issue_number(
-        event_name: str, payload: dict[str, Any]
-    ) -> int | None:
+    def _extract_issue_number(event_name: str, payload: dict[str, Any]) -> int | None:
         """Extract the issue number from an ``issues`` event payload.
 
         Args:

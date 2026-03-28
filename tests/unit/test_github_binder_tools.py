@@ -610,3 +610,314 @@ class TestPRReviewAPIErrors:
             with pytest.raises(RuntimeError) as exc_info:
                 bindings["pr:review"](body="test")
         assert "timeout" in str(exc_info.value).lower()
+
+
+# ---------------------------------------------------------------------------
+# Helpers / fixtures for issue event
+# ---------------------------------------------------------------------------
+
+
+def _make_issue_env(
+    tmp_path: Path,
+    issue_number: int = 7,
+    token: str = "ghp_testtoken",
+    repository: str = "owner/repo",
+) -> dict[str, str]:
+    """Build an issues event environment dict."""
+    payload = {"issue": {"number": issue_number}}
+    return _make_env(
+        tmp_path,
+        event_name="issues",
+        payload=payload,
+        token=token,
+        repository=repository,
+    )
+
+
+@pytest.fixture()
+def issue_env(tmp_path: Path) -> dict[str, str]:
+    """Environment for an issues event with issue #7."""
+    return _make_issue_env(tmp_path)
+
+
+@pytest.fixture()
+def binder_issue(issue_env: dict[str, str]) -> GitHubActionsBinder:
+    """GitHubActionsBinder instantiated for an issues event."""
+    return GitHubActionsBinder(env=issue_env)
+
+
+# ---------------------------------------------------------------------------
+# _extract_issue_number: static method
+# ---------------------------------------------------------------------------
+
+
+class TestExtractIssueNumber:
+    """Verify _extract_issue_number correctly handles event payloads."""
+
+    def test_returns_none_for_non_issues_event(self) -> None:
+        result = GitHubActionsBinder._extract_issue_number("push", {})
+        assert result is None
+
+    def test_returns_none_for_pull_request_event(self) -> None:
+        payload = {"issue": {"number": 10}}
+        result = GitHubActionsBinder._extract_issue_number("pull_request", payload)
+        assert result is None
+
+    def test_returns_issue_number_for_issues_event(self) -> None:
+        payload = {"issue": {"number": 7}}
+        result = GitHubActionsBinder._extract_issue_number("issues", payload)
+        assert result == 7
+
+    def test_returns_none_when_issue_key_absent(self) -> None:
+        result = GitHubActionsBinder._extract_issue_number("issues", {})
+        assert result is None
+
+    def test_returns_none_when_number_key_absent(self) -> None:
+        result = GitHubActionsBinder._extract_issue_number("issues", {"issue": {}})
+        assert result is None
+
+    def test_converts_number_to_int(self) -> None:
+        payload = {"issue": {"number": "42"}}
+        result = GitHubActionsBinder._extract_issue_number("issues", payload)
+        assert result == 42
+        assert isinstance(result, int)
+
+
+# ---------------------------------------------------------------------------
+# bind_tools: issue:comment
+# ---------------------------------------------------------------------------
+
+
+class TestBindToolsIssueComment:
+    """Verify issue:comment posts to correct GitHub API URL with correct payload."""
+
+    def test_issue_comment_posts_to_correct_url(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
+            bindings["issue:comment"](body="Triaged this issue")
+        posted_url = (
+            mock_post.call_args.args[0]
+            if mock_post.call_args.args
+            else mock_post.call_args[0][0]
+        )
+        assert "repos/owner/repo/issues/7/comments" in posted_url
+
+    def test_issue_comment_uses_github_api_base_url(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
+            bindings["issue:comment"](body="hello")
+        posted_url = (
+            mock_post.call_args.args[0]
+            if mock_post.call_args.args
+            else mock_post.call_args[0][0]
+        )
+        assert "api.github.com" in posted_url
+
+    def test_issue_comment_posts_body_in_payload(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
+            bindings["issue:comment"](body="Triage complete: needs label")
+        call_kwargs = mock_post.call_args.kwargs
+        assert call_kwargs.get("json", {}).get("body") == "Triage complete: needs label"
+
+    def test_issue_comment_uses_auth_token(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
+            bindings["issue:comment"](body="test body")
+        call_kwargs = mock_post.call_args.kwargs
+        headers = call_kwargs.get("headers", {})
+        assert headers.get("Authorization") == "Bearer ghp_testtoken"
+
+    def test_issue_comment_returns_api_response(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        api_response = {"id": 999, "body": "Triaged this issue"}
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success(api_response)):
+            result = bindings["issue:comment"](body="Triaged this issue")
+        assert result == api_response
+
+    def test_issue_comment_on_non_issues_event_raises_value_error(
+        self, binder_push: GitHubActionsBinder
+    ) -> None:
+        """issue:comment on a push event (no issue number) should raise ValueError."""
+        bindings = binder_push.bind_tools(["issue:comment"])
+        with pytest.raises(ValueError, match="issues event"):
+            bindings["issue:comment"](body="some comment")
+
+    def test_issue_comment_on_pr_event_raises_value_error(
+        self, binder_pr: GitHubActionsBinder
+    ) -> None:
+        """issue:comment on a pull_request event should raise ValueError."""
+        bindings = binder_pr.bind_tools(["issue:comment"])
+        with pytest.raises(ValueError, match="issues event"):
+            bindings["issue:comment"](body="some comment")
+
+    def test_issue_comment_requires_body_kwarg(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with pytest.raises(TypeError):
+            bindings["issue:comment"]()  # type: ignore[call-arg]
+
+    def test_issue_comment_403_error_mentions_issues_scope(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        error_response = _mock_httpx_error_response(403, "Forbidden")
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with patch("httpx.post", return_value=error_response):
+            with pytest.raises(RuntimeError) as exc_info:
+                bindings["issue:comment"](body="test")
+        assert "issues:write" in str(exc_info.value)
+
+    def test_issue_comment_404_error_mentions_issue_number(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        error_response = _mock_httpx_error_response(404, "Not Found")
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with patch("httpx.post", return_value=error_response):
+            with pytest.raises(RuntimeError) as exc_info:
+                bindings["issue:comment"](body="test")
+        assert "7" in str(exc_info.value)
+
+    def test_issue_comment_timeout_raises_runtime_error(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:comment"])
+        with patch("httpx.post", side_effect=httpx.TimeoutException("timed out")):
+            with pytest.raises(RuntimeError) as exc_info:
+                bindings["issue:comment"](body="test")
+        assert "timeout" in str(exc_info.value).lower()
+
+
+# ---------------------------------------------------------------------------
+# bind_tools: issue:label
+# ---------------------------------------------------------------------------
+
+
+class TestBindToolsIssueLabel:
+    """Verify issue:label posts to correct GitHub API URL with correct payload."""
+
+    def test_issue_label_posts_to_correct_url(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
+            bindings["issue:label"](labels=["bug"])
+        posted_url = (
+            mock_post.call_args.args[0]
+            if mock_post.call_args.args
+            else mock_post.call_args[0][0]
+        )
+        assert "repos/owner/repo/issues/7/labels" in posted_url
+
+    def test_issue_label_uses_github_api_base_url(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
+            bindings["issue:label"](labels=["bug"])
+        posted_url = (
+            mock_post.call_args.args[0]
+            if mock_post.call_args.args
+            else mock_post.call_args[0][0]
+        )
+        assert "api.github.com" in posted_url
+
+    def test_issue_label_posts_labels_in_payload(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
+            bindings["issue:label"](labels=["bug", "triage"])
+        call_kwargs = mock_post.call_args.kwargs
+        assert call_kwargs.get("json", {}).get("labels") == ["bug", "triage"]
+
+    def test_issue_label_uses_auth_token(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success()) as mock_post:
+            bindings["issue:label"](labels=["enhancement"])
+        call_kwargs = mock_post.call_args.kwargs
+        headers = call_kwargs.get("headers", {})
+        assert headers.get("Authorization") == "Bearer ghp_testtoken"
+
+    def test_issue_label_returns_api_response(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        api_response = [{"id": 1, "name": "bug"}]
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", return_value=_mock_httpx_post_success(api_response)):
+            result = bindings["issue:label"](labels=["bug"])
+        assert result == api_response
+
+    def test_issue_label_on_non_issues_event_raises_value_error(
+        self, binder_push: GitHubActionsBinder
+    ) -> None:
+        """issue:label on a push event (no issue number) should raise ValueError."""
+        bindings = binder_push.bind_tools(["issue:label"])
+        with pytest.raises(ValueError, match="issues event"):
+            bindings["issue:label"](labels=["bug"])
+
+    def test_issue_label_on_pr_event_raises_value_error(
+        self, binder_pr: GitHubActionsBinder
+    ) -> None:
+        """issue:label on a pull_request event should raise ValueError."""
+        bindings = binder_pr.bind_tools(["issue:label"])
+        with pytest.raises(ValueError, match="issues event"):
+            bindings["issue:label"](labels=["bug"])
+
+    def test_issue_label_requires_labels_kwarg(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with pytest.raises(TypeError):
+            bindings["issue:label"]()  # type: ignore[call-arg]
+
+    def test_issue_label_403_error_mentions_issues_scope(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        error_response = _mock_httpx_error_response(403, "Forbidden")
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", return_value=error_response):
+            with pytest.raises(RuntimeError) as exc_info:
+                bindings["issue:label"](labels=["bug"])
+        assert "issues:write" in str(exc_info.value)
+
+    def test_issue_label_404_error_mentions_issue_number(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        error_response = _mock_httpx_error_response(404, "Not Found")
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", return_value=error_response):
+            with pytest.raises(RuntimeError) as exc_info:
+                bindings["issue:label"](labels=["bug"])
+        assert "7" in str(exc_info.value)
+
+    def test_issue_label_422_error_mentions_validation(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        error_response = _mock_httpx_error_response(422, "Unprocessable Entity")
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", return_value=error_response):
+            with pytest.raises(RuntimeError) as exc_info:
+                bindings["issue:label"](labels=["nonexistent-label"])
+        assert "422" in str(exc_info.value)
+
+    def test_issue_label_timeout_raises_runtime_error(
+        self, binder_issue: GitHubActionsBinder
+    ) -> None:
+        bindings = binder_issue.bind_tools(["issue:label"])
+        with patch("httpx.post", side_effect=httpx.TimeoutException("timed out")):
+            with pytest.raises(RuntimeError) as exc_info:
+                bindings["issue:label"](labels=["bug"])
+        assert "timeout" in str(exc_info.value).lower()
