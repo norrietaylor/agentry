@@ -1133,8 +1133,25 @@ class GitHubActionsBinder:
         except (json.JSONDecodeError, ValueError):
             return f"**Triage Output**\n\n```\n{raw[:3000]}\n```"
 
-        agent_output = data.get("output") or {}
+        agent_output = data.get("output")
         parts: list[str] = ["## Agentry Issue Triage\n"]
+
+        # Handle case where output is a string (raw agent response).
+        if isinstance(agent_output, str) and agent_output.strip():
+            extracted = self._extract_json_from_text(agent_output)
+            if isinstance(extracted, dict):
+                agent_output = extracted
+            else:
+                parts.append(f"```\n{agent_output[:3000]}\n```")
+                usage = data.get("token_usage", {})
+                if usage:
+                    _in = usage.get("input_tokens", 0)
+                    _out = usage.get("output_tokens", 0)
+                    parts.append(f"\n---\n*Tokens: {_in:,} in / {_out:,} out*")
+                return "\n".join(parts)
+
+        if not isinstance(agent_output, dict):
+            agent_output = {}
 
         # Severity badge
         severity: str = agent_output.get("severity", "")
@@ -1176,6 +1193,11 @@ class GitHubActionsBinder:
             raw_response: str = agent_output.get("raw_response", "")
             if raw_response:
                 parts.append(f"```\n{raw_response[:3000]}\n```")
+            else:
+                parts.append("*No structured triage output was returned by the agent.*\n")
+                raw_stdout = data.get("raw_stdout", "")
+                if raw_stdout:
+                    parts.append(f"```\n{raw_stdout[:3000]}\n```")
 
         # Token usage
         usage = data.get("token_usage", {})
