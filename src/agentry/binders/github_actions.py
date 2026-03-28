@@ -896,6 +896,13 @@ class GitHubActionsBinder:
             comment_body = self._format_output_comment(output_path)
             self._post_output_comment(comment_body)
 
+        # When the event is an issue, post the triage output as an issue comment
+        # and apply severity/category labels (best-effort).
+        if self._issue_number is not None:
+            comment_body = self._format_triage_comment(output_path)
+            self._post_issue_comment(comment_body)
+            self._apply_triage_labels(output_path)
+
         return paths
 
     def _format_output_comment(self, output_path: Path) -> str:
@@ -1014,6 +1021,208 @@ class GitHubActionsBinder:
                 f"{status} error posting output PR comment: {body_snippet}. {remediation}"
             ) from exc
         return cast(dict[str, Any], response.json())
+
+    def _format_triage_comment(self, output_path: Path) -> str:
+        """Format triage output as a readable issue comment.
+
+        Reads the output JSON file and formats severity, category, affected
+        components, recommended assignee, and reasoning into a Markdown comment.
+        Falls back to raw JSON if the output structure is unrecognised.
+
+        Args:
+            output_path: Path to the ``output.json`` file written by the agent.
+
+        Returns:
+            Formatted Markdown string suitable for posting as an issue comment.
+        """
+        if not output_path.exists():
+            return f"Triage output: {output_path} (file not found)"
+
+        try:
+            raw = output_path.read_text(encoding="utf-8")
+        except OSError:
+            return f"Triage output: {output_path} (read error)"
+
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return f"**Triage Output**\n\n```\n{raw[:3000]}\n```"
+
+        agent_output = data.get("output") or {}
+        parts: list[str] = ["## Agentry Issue Triage\n"]
+
+        # Severity badge
+        severity: str = agent_output.get("severity", "")
+        if severity:
+            severity_badge = {
+                "critical": "![critical](https://img.shields.io/badge/severity-critical-red)",
+                "high": "![high](https://img.shields.io/badge/severity-high-orange)",
+                "medium": "![medium](https://img.shields.io/badge/severity-medium-yellow)",
+                "low": "![low](https://img.shields.io/badge/severity-low-green)",
+            }.get(severity, f"**Severity:** {severity}")
+            parts.append(f"{severity_badge}\n")
+
+        # Category
+        category: str = agent_output.get("category", "")
+        if category:
+            parts.append(f"**Category:** {category}\n")
+
+        # Affected components
+        components: list[str] = agent_output.get("affected_components", [])
+        if components:
+            parts.append("**Affected Components:**")
+            for component in components:
+                parts.append(f"- {component}")
+            parts.append("")
+
+        # Recommended assignee
+        assignee: str = agent_output.get("recommended_assignee", "")
+        if assignee:
+            parts.append(f"**Recommended Assignee:** {assignee}\n")
+
+        # Reasoning
+        reasoning: str = agent_output.get("reasoning", "")
+        if reasoning:
+            parts.append("**Reasoning:**")
+            parts.append(f"{reasoning}\n")
+
+        # Raw response fallback when no structured data is present.
+        if not severity and not category and not reasoning:
+            raw_response: str = agent_output.get("raw_response", "")
+            if raw_response:
+                parts.append(f"```\n{raw_response[:3000]}\n```")
+
+        # Token usage
+        usage = data.get("token_usage", {})
+        if usage:
+            _in = usage.get("input_tokens", 0)
+            _out = usage.get("output_tokens", 0)
+            parts.append(f"\n---\n*Tokens: {_in:,} in / {_out:,} out*")
+
+        return "\n".join(parts)
+
+    def _post_issue_comment(self, body: str) -> dict[str, Any]:
+        """Post triage output as an issue comment via the GitHub REST API.
+
+        Args:
+            body: The comment body text (Markdown supported).
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            RuntimeError: On GitHub API errors with HTTP status, response body
+                snippet, and remediation hint.
+        """
+        url = (
+            f"https://api.github.com/repos/{self._repository}/issues/{self._issue_number}/comments"
+        )
+        try:
+            response = httpx.post(
+                url,
+                json={"body": body},
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(
+                "Network timeout while posting triage issue comment to GitHub API. "
+                "Check your network connection or increase the timeout."
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            body_snippet = exc.response.text[:200]
+            if status == 403:
+                remediation = (
+                    "GITHUB_TOKEN may lack `issues:write` scope. "
+                    "Ensure the workflow has `issues: write` permissions."
+                )
+            elif status == 404:
+                remediation = (
+                    f"Issue #{self._issue_number} not found in repository "
+                    f"{self._repository!r}. "
+                    "Verify the repository name and issue number are correct."
+                )
+            else:
+                remediation = "Check GitHub API status and token permissions."
+            raise RuntimeError(
+                f"{status} error posting triage issue comment: {body_snippet}. {remediation}"
+            ) from exc
+        return cast(dict[str, Any], response.json())
+
+    def _apply_triage_labels(self, output_path: Path) -> None:
+        """Apply severity and category labels to the issue (best-effort).
+
+        Reads the agent output JSON to extract ``severity`` and ``category``
+        fields, then calls the GitHub REST API to add labels in the form
+        ``severity:{value}`` and ``category:{value}``.
+
+        Label application is best-effort: any errors are logged as warnings
+        and do not propagate to the caller.
+
+        Args:
+            output_path: Path to the ``output.json`` file written by the agent.
+        """
+        if not output_path.exists():
+            logger.warning(
+                "Skipping label application: output file %s does not exist.",
+                output_path,
+            )
+            return
+
+        try:
+            raw = output_path.read_text(encoding="utf-8")
+            data = json.loads(raw)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            logger.warning(
+                "Skipping label application: could not parse output file %s: %s",
+                output_path,
+                exc,
+            )
+            return
+
+        agent_output = data.get("output") or {}
+        labels: list[str] = []
+
+        severity = agent_output.get("severity", "")
+        if severity:
+            labels.append(f"severity:{severity}")
+
+        category = agent_output.get("category", "")
+        if category:
+            labels.append(f"category:{category}")
+
+        if not labels:
+            logger.warning(
+                "Skipping label application: no severity or category found in triage output."
+            )
+            return
+
+        url = f"https://api.github.com/repos/{self._repository}/issues/{self._issue_number}/labels"
+        try:
+            response = httpx.post(
+                url,
+                json={"labels": labels},
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            response.raise_for_status()
+            logger.info("Applied triage labels %r to issue #%s.", labels, self._issue_number)
+        except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.RequestError) as exc:
+            logger.warning(
+                "Failed to apply triage labels %r to issue #%s: %s. "
+                "Label application is best-effort; workflow continues.",
+                labels,
+                self._issue_number,
+                exc,
+            )
 
     def generate_pipeline_config(
         self,
