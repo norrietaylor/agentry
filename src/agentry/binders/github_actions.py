@@ -104,6 +104,12 @@ class GitHubActionsBinder:
             _env,
         )
 
+        # Optional OAuth token for operations that need to trigger other
+        # workflows. GitHub Actions GITHUB_TOKEN cannot trigger further
+        # workflow runs (by design), so label application uses this token
+        # when available to ensure label-triggered workflows fire.
+        self._trigger_token: str = _env.get("CLAUDE_CODE_OAUTH_TOKEN", "") or self._token
+
         # Parse the event payload JSON on construction.
         self._event_payload: dict[str, Any] = self._load_event_payload(self._event_path)
 
@@ -1127,8 +1133,25 @@ class GitHubActionsBinder:
         except (json.JSONDecodeError, ValueError):
             return f"**Triage Output**\n\n```\n{raw[:3000]}\n```"
 
-        agent_output = data.get("output") or {}
+        agent_output = data.get("output")
         parts: list[str] = ["## Agentry Issue Triage\n"]
+
+        # Handle case where output is a string (raw agent response).
+        if isinstance(agent_output, str) and agent_output.strip():
+            extracted = self._extract_json_from_text(agent_output)
+            if isinstance(extracted, dict):
+                agent_output = extracted
+            else:
+                parts.append(f"```\n{agent_output[:3000]}\n```")
+                usage = data.get("token_usage", {})
+                if usage:
+                    _in = usage.get("input_tokens", 0)
+                    _out = usage.get("output_tokens", 0)
+                    parts.append(f"\n---\n*Tokens: {_in:,} in / {_out:,} out*")
+                return "\n".join(parts)
+
+        if not isinstance(agent_output, dict):
+            agent_output = {}
 
         # Severity badge
         severity: str = agent_output.get("severity", "")
@@ -1170,6 +1193,11 @@ class GitHubActionsBinder:
             raw_response: str = agent_output.get("raw_response", "")
             if raw_response:
                 parts.append(f"```\n{raw_response[:3000]}\n```")
+            else:
+                parts.append("*No structured triage output was returned by the agent.*\n")
+                raw_stdout = data.get("raw_stdout", "")
+                if raw_stdout:
+                    parts.append(f"```\n{raw_stdout[:3000]}\n```")
 
         # Token usage
         usage = data.get("token_usage", {})
@@ -1281,13 +1309,17 @@ class GitHubActionsBinder:
             )
             return
 
+        # Use the trigger token (OAuth/PAT) instead of GITHUB_TOKEN so that
+        # the label event fires downstream workflows (e.g. bug-fix, feature-implement).
+        # GITHUB_TOKEN-originated events are intentionally suppressed by GitHub Actions.
+        label_token = self._trigger_token
         url = f"https://api.github.com/repos/{self._repository}/issues/{self._issue_number}/labels"
         try:
             response = httpx.post(
                 url,
                 json={"labels": labels},
                 headers={
-                    "Authorization": f"Bearer {self._token}",
+                    "Authorization": f"Bearer {label_token}",
                     "Accept": "application/vnd.github+json",
                     "X-GitHub-Api-Version": "2022-11-28",
                 },
