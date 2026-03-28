@@ -104,6 +104,12 @@ class GitHubActionsBinder:
             _env,
         )
 
+        # Optional OAuth token for operations that need to trigger other
+        # workflows. GitHub Actions GITHUB_TOKEN cannot trigger further
+        # workflow runs (by design), so label application uses this token
+        # when available to ensure label-triggered workflows fire.
+        self._trigger_token: str = _env.get("CLAUDE_CODE_OAUTH_TOKEN", "") or self._token
+
         # Parse the event payload JSON on construction.
         self._event_payload: dict[str, Any] = self._load_event_payload(self._event_path)
 
@@ -1281,13 +1287,17 @@ class GitHubActionsBinder:
             )
             return
 
+        # Use the trigger token (OAuth/PAT) instead of GITHUB_TOKEN so that
+        # the label event fires downstream workflows (e.g. bug-fix, feature-implement).
+        # GITHUB_TOKEN-originated events are intentionally suppressed by GitHub Actions.
+        label_token = self._trigger_token
         url = f"https://api.github.com/repos/{self._repository}/issues/{self._issue_number}/labels"
         try:
             response = httpx.post(
                 url,
                 json={"labels": labels},
                 headers={
-                    "Authorization": f"Bearer {self._token}",
+                    "Authorization": f"Bearer {label_token}",
                     "Accept": "application/vnd.github+json",
                     "X-GitHub-Api-Version": "2022-11-28",
                 },
