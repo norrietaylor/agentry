@@ -1293,8 +1293,8 @@ class GitHubActionsBinder:
             return
 
         agent_output = data.get("output")
-        logger.info(
-            "Label application: output type=%s, value=%s",
+        logger.warning(
+            "DEBUG label application: output type=%s, value=%s",
             type(agent_output).__name__,
             str(agent_output)[:500] if agent_output else "None",
         )
