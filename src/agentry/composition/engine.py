@@ -53,6 +53,13 @@ from agentry.runners.protocol import AgentConfig, ExecutionResult, RunnerContext
 logger = logging.getLogger(__name__)
 
 
+def _output_decls(workflow: WorkflowDefinition) -> dict[str, object]:
+    """Extract the output declarations dict from a workflow definition."""
+    if workflow.output is None:
+        return {}
+    return workflow.output.model_dump()
+
+
 class CompositionEngine:
     """Async DAG scheduler for composed workflow execution.
 
@@ -264,9 +271,21 @@ class CompositionEngine:
 
             # Store the output path so downstream nodes can resolve inputs
             # via file-based data passing.
-            self._node_outputs[node_id] = (
-                self._run_dir / node_id / "result.json"
-            )
+            node_output_path = self._run_dir / node_id / "result.json"
+            self._node_outputs[node_id] = node_output_path
+
+            # Map outputs via the binder (posts comments, applies labels).
+            # The binder reads the output.json file to format and post results.
+            try:
+                self._binder.map_outputs(
+                    output_declarations=_output_decls(workflow),
+                    target_dir=str(self._run_dir / node_id),
+                    run_id=node_id,
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "map_outputs failed for node %s", node_id, exc_info=True
+                )
 
             # Check for failure using ExecutionResult fields.
             node_error = result.error or (
