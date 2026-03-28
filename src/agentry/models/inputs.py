@@ -55,6 +55,8 @@ class StringInput(BaseModel):
     required: bool = True
     description: str = ""
     default: str | None = None
+    source: str | None = None
+    fallback: str | None = None
 
 
 # Discriminated union of all input types, keyed on the ``type`` field.

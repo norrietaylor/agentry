@@ -148,8 +148,18 @@ class ClaudeCodeAgent:
 
         cmd.extend(["--model", self._model])
 
-        if self._max_turns is not None:
-            cmd.extend(["--max-turns", str(self._max_turns)])
+        # Task-level max_iterations takes precedence over instance-level.
+        effective_max_turns = (
+            agent_task.max_iterations
+            if agent_task.max_iterations is not None
+            else self._max_turns
+        )
+        if effective_max_turns is not None:
+            if effective_max_turns < 1:
+                raise ValueError(
+                    f"max_iterations must be >= 1, got {effective_max_turns}"
+                )
+            cmd.extend(["--max-turns", str(effective_max_turns)])
 
         if agent_task.output_schema is not None:
             cmd.extend(["--output-format", "json"])

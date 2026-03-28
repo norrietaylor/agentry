@@ -1,0 +1,50 @@
+Type: test
+Description: Integration tests verify issue triage pipeline and tools work correctly
+Expected: All issue-related tests pass (29 tests total)
+Timestamp: 2026-03-27T00:00:00Z
+
+Command: uv run pytest tests/integration/test_issue_triage_pipeline.py tests/integration/test_issue_tools.py -v
+
+Output:
+============================= test session starts ==============================
+platform linux -- Python 3.13.7, pytest-9.0.2, pluggy-1.6.0 -- <workspace>/.venv/bin/python
+cachedir: .pytest_cache
+rootdir: <workspace>
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, cov-7.0.0, anyio-4.12.1
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 29 items
+
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_complete_triage_output_posts_comment_and_labels PASSED [  3%]
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_comment_body_contains_all_triage_fields PASSED [  6%]
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_labels_posted_with_correct_format PASSED [ 10%]
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_label_api_failure_does_not_abort_run PASSED [ 13%]
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_label_timeout_does_not_abort_run PASSED [ 17%]
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_comment_uses_correct_endpoint_for_issue PASSED [ 20%]
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_output_missing_posts_fallback_comment PASSED [ 24%]
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_runs_dir_created_for_issues_event PASSED [ 27%]
+tests/integration/test_issue_triage_pipeline.py::TestIssueTriagePipelineFlow::test_token_usage_included_in_comment PASSED [ 31%]
+tests/integration/test_issue_tools.py::TestIssueCommentIntegration::test_issue_comment_sends_correct_api_request PASSED [ 34%]
+tests/integration/test_issue_tools.py::TestIssueCommentIntegration::test_issue_comment_sends_correct_body PASSED [ 37%]
+tests/integration/test_issue_tools.py::TestIssueCommentIntegration::test_issue_comment_includes_authorization_header PASSED [ 41%]
+tests/integration/test_issue_tools.py::TestIssueCommentIntegration::test_issue_comment_returns_response_json PASSED [ 44%]
+tests/integration/test_issue_tools.py::TestIssueCommentIntegration::test_issue_comment_403_raises_runtime_with_remediation PASSED [ 48%]
+tests/integration/test_issue_tools.py::TestIssueCommentIntegration::test_issue_comment_404_raises_runtime_with_issue_number PASSED [ 51%]
+tests/integration/test_issue_tools.py::TestIssueCommentIntegration::test_issue_comment_timeout_raises_runtime_error PASSED [ 55%]
+tests/integration/test_issue_tools.py::TestIssueCommentIntegration::test_issue_comment_raises_on_non_issues_event PASSED [ 58%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_sends_correct_api_request PASSED [ 62%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_sends_labels_in_payload PASSED [ 65%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_includes_authorization_header PASSED [ 68%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_returns_response_json PASSED [ 72%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_403_raises_runtime_with_remediation PASSED [ 75%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_404_raises_runtime_with_issue_number PASSED [ 79%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_422_raises_runtime_with_validation_hint PASSED [ 82%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_timeout_raises_runtime_error PASSED [ 86%]
+tests/integration/test_issue_tools.py::TestIssueLabelIntegration::test_issue_label_raises_on_non_issues_event PASSED [ 89%]
+tests/integration/test_issue_tools.py::TestSupportedToolsContainsIssueTools::test_issue_comment_in_supported_tools PASSED [ 93%]
+tests/integration/test_issue_tools.py::TestSupportedToolsContainsIssueTools::test_issue_label_in_supported_tools PASSED [ 96%]
+tests/integration/test_issue_tools.py::TestSupportedToolsContainsIssueTools::test_both_issue_tools_can_be_bound_together PASSED [100%]
+
+============================== 29 passed in 0.04s ==============================
+
+Status: PASS

@@ -21,7 +21,9 @@ from agentry.binders.exceptions import (
 )
 
 # Tools supported by the local binder.
-SUPPORTED_TOOLS = frozenset({"repository:read", "shell:execute", "pr:create"})
+SUPPORTED_TOOLS = frozenset(
+    {"repository:read", "shell:execute", "pr:create", "issue:comment", "issue:label"}
+)
 
 # Allowlist of permitted executable names for shell:execute.
 _SHELL_ALLOWLIST: frozenset[str] = frozenset(
@@ -204,6 +206,10 @@ class LocalBinder:
                 bindings[tool_name] = _make_shell_execute()
             elif tool_name == "pr:create":
                 bindings[tool_name] = _make_pr_create()
+            elif tool_name == "issue:comment":
+                bindings[tool_name] = _make_issue_comment_stub()
+            elif tool_name == "issue:label":
+                bindings[tool_name] = _make_issue_label_stub()
         return bindings
 
     def map_outputs(
@@ -352,6 +358,7 @@ def _make_repository_read() -> Any:
     """
 
     def repository_read(*, repo_root: str, path: str) -> str:
+        """Read a file from the repository with path traversal protection."""
         root = Path(repo_root).resolve()
         # Resolve the candidate path. We must handle symlinks properly:
         # Path.resolve() follows symlinks, so resolving the candidate gives us
@@ -441,6 +448,7 @@ def _make_shell_execute() -> Any:
     """
 
     def shell_execute(*, command: str, cwd: str | None = None) -> str:
+        """Execute a read-only shell command from the allowlist."""
         _validate_shell_command(command)
         result = subprocess.run(
             command,
@@ -501,6 +509,7 @@ def _make_pr_create() -> Any:
         files: list[str] | None = None,
         cwd: str | None = None,
     ) -> dict[str, Any]:
+        """Create a local branch, commit files, and open a PR via ``gh``."""
         # Guard: never push to a protected branch.
         if branch_name in _PROTECTED_BRANCHES:
             raise ValueError(
@@ -511,6 +520,7 @@ def _make_pr_create() -> Any:
         work_dir = cwd or os.getcwd()
 
         def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+            """Run a git/gh subprocess in the work directory."""
             return subprocess.run(
                 cmd,
                 cwd=work_dir,
@@ -568,3 +578,64 @@ def _make_pr_create() -> Any:
 
     pr_create.__name__ = "pr_create"
     return pr_create
+
+
+def _make_issue_comment_stub() -> Any:
+    """Return a no-op callable for the ``issue:comment`` tool.
+
+    When running locally, posting a comment to a GitHub issue is not
+    meaningful.  This stub logs the comment body to stdout and returns a
+    placeholder result so that workflows that declare ``issue:comment`` can
+    still be executed locally for testing purposes.
+
+    The callable signature is::
+
+        def issue_comment(*, body: str, issue_number: int | None = None) -> dict[str, Any]: ...
+
+    Returns:
+        A dict with ``status`` and ``message`` keys.
+    """
+
+    def issue_comment(
+        *,
+        body: str,
+        issue_number: int | None = None,
+    ) -> dict[str, Any]:
+        """Log comment metadata and return a stub response."""
+        print(
+            "[local] issue:comment (stub) — "
+            f"issue_number={issue_number!r}, body_length={len(body)}"
+        )
+        return {"status": "stub", "message": "issue:comment is a no-op in local binder"}
+
+    issue_comment.__name__ = "issue_comment"
+    return issue_comment
+
+
+def _make_issue_label_stub() -> Any:
+    """Return a no-op callable for the ``issue:label`` tool.
+
+    When running locally, applying labels to a GitHub issue is not
+    meaningful.  This stub logs the labels to stdout and returns a
+    placeholder result so that workflows that declare ``issue:label`` can
+    still be executed locally for testing purposes.
+
+    The callable signature is::
+
+        def issue_label(*, labels: list[str], issue_number: int | None = None) -> dict[str, Any]: ...
+
+    Returns:
+        A dict with ``status`` and ``message`` keys.
+    """
+
+    def issue_label(
+        *,
+        labels: list[str],
+        issue_number: int | None = None,
+    ) -> dict[str, Any]:
+        """Log label names and return a stub response."""
+        print(f"[local] issue:label (stub) — labels: {labels}")
+        return {"status": "stub", "message": "issue:label is a no-op in local binder"}
+
+    issue_label.__name__ = "issue_label"
+    return issue_label

@@ -1,0 +1,9 @@
+Type: cli
+Command: uv run ruff check src/agentry/ && uv run mypy src/agentry/ --ignore-missing-imports
+Expected: No lint or type errors
+Timestamp: 2026-03-27T00:00:00Z
+
+ruff check src/agentry/: All checks passed!
+mypy src/agentry/ --ignore-missing-imports: Success: no issues found in 58 source files
+
+Status: PASS

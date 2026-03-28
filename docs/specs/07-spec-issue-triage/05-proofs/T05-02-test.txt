@@ -1,0 +1,14 @@
+Type: test
+Command: uv run pytest tests/e2e/test_public_surface.py -v -q
+Expected: All 38 e2e tests pass (previously 3 were failing)
+Timestamp: 2026-03-27T00:00:00Z
+
+38 e2e tests collected and run.
+All 38 passed in 45.02s.
+
+Previously failing tests that now PASS:
+  - test_validate_all_standard_workflows[triage.yaml]  (StringInput source/fallback now accepted)
+  - test_run_planning_pipeline_stub  (triage.yaml now loads; max_iterations propagated correctly)
+  - test_run_node_isolation  (triage.yaml now loads for composition sub-workflow)
+
+Status: PASS

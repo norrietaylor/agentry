@@ -8,6 +8,7 @@ to workflow step outputs.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -18,9 +19,19 @@ import httpx
 from agentry.binders.exceptions import UnsupportedToolError
 from agentry.binders.local import _make_repository_read, _make_shell_execute
 
+logger = logging.getLogger(__name__)
+
 # Tools supported by the GitHub Actions binder.
 SUPPORTED_TOOLS: frozenset[str] = frozenset(
-    {"repository:read", "shell:execute", "pr:comment", "pr:review", "pr:create"}
+    {
+        "repository:read",
+        "shell:execute",
+        "pr:comment",
+        "pr:review",
+        "pr:create",
+        "issue:comment",
+        "issue:label",
+    }
 )
 
 
@@ -94,12 +105,13 @@ class GitHubActionsBinder:
         )
 
         # Parse the event payload JSON on construction.
-        self._event_payload: dict[str, Any] = self._load_event_payload(
-            self._event_path
-        )
+        self._event_payload: dict[str, Any] = self._load_event_payload(self._event_path)
 
         # Extract PR number when the event is a pull_request event.
-        self._pr_number: int | None = self._extract_pr_number(
+        self._pr_number: int | None = self._extract_pr_number(self._event_name, self._event_payload)
+
+        # Extract issue number when the event is an issues event.
+        self._issue_number: int | None = self._extract_issue_number(
             self._event_name, self._event_payload
         )
 
@@ -223,6 +235,7 @@ class GitHubActionsBinder:
         1. Explicit ``--input`` override via *provided_values*.
         2. ``workflow_dispatch`` event inputs payload field.
         3. Dot-notation ``source`` mapping against the event payload.
+        4. Dot-notation ``fallback`` mapping when source resolves to null/empty.
 
         Args:
             name: Input name.
@@ -238,9 +251,7 @@ class GitHubActionsBinder:
 
         # 2. workflow_dispatch: check event payload inputs.
         if self._event_name == "workflow_dispatch":
-            dispatch_inputs: dict[str, Any] = self._event_payload.get(
-                "inputs", {}
-            )
+            dispatch_inputs: dict[str, Any] = self._event_payload.get("inputs", {})
             if name in dispatch_inputs:
                 return str(dispatch_inputs[name])
 
@@ -248,8 +259,23 @@ class GitHubActionsBinder:
         source: str | None = spec.get("source")
         if source is not None:
             value = self._traverse_payload(source)
-            if value is not None:
+            if value is not None and str(value):
                 return str(value)
+
+            # 4. Fallback when source resolves to null or empty string.
+            fallback: str | None = spec.get("fallback")
+            if fallback is not None:
+                fallback_value = self._traverse_payload(fallback)
+                if fallback_value is not None and str(fallback_value):
+                    logger.warning(
+                        "Input %r: source %r resolved to null/empty; "
+                        "falling back to %r (value: %r).",
+                        name,
+                        source,
+                        fallback,
+                        fallback_value,
+                    )
+                    return str(fallback_value)
 
         return None
 
@@ -290,10 +316,16 @@ class GitHubActionsBinder:
         - ``pr:create``: Creates a branch, commits files, and opens a pull request
           via the GitHub REST API.  Enforces safety guardrails: no force-push,
           no push to protected branches, and no auto-merge.
+        - ``issue:comment``: Posts a comment to the current issue via the GitHub
+          REST API (``POST /repos/{owner}/{repo}/issues/{number}/comments``).
+          Requires an ``issues`` event context.
+        - ``issue:label``: Adds labels to the current issue via the GitHub REST
+          API (``POST /repos/{owner}/{repo}/issues/{number}/labels``).  Requires
+          an ``issues`` event context.
 
         Args:
             tool_declarations: Tool identifiers declared in the workflow
-                (e.g. ``["repository:read", "pr:comment"]``).
+                (e.g. ``["repository:read", "issue:comment"]``).
 
         Returns:
             Mapping of tool name to a concrete callable implementation.
@@ -314,6 +346,7 @@ class GitHubActionsBinder:
                 def _repository_read_ci(
                     *, path: str, _workspace: str = workspace, _reader: Any = _reader
                 ) -> str:
+                    """Read a file from the CI workspace with path traversal protection."""
                     return cast(str, _reader(repo_root=_workspace, path=path))
 
                 _repository_read_ci.__name__ = "repository_read"
@@ -326,6 +359,10 @@ class GitHubActionsBinder:
                 bindings[tool_name] = self._make_pr_review()
             elif tool_name == "pr:create":
                 bindings[tool_name] = self._make_pr_create()
+            elif tool_name == "issue:comment":
+                bindings[tool_name] = self._make_issue_comment()
+            elif tool_name == "issue:label":
+                bindings[tool_name] = self._make_issue_label()
         return bindings
 
     # ------------------------------------------------------------------
@@ -355,6 +392,7 @@ class GitHubActionsBinder:
         pr_number = self._pr_number
 
         def pr_comment(*, body: str) -> dict[str, Any]:
+            """Post a comment to the current pull request."""
             if pr_number is None:
                 raise ValueError(
                     "pr:comment requires a pull_request event, but the current "
@@ -393,8 +431,7 @@ class GitHubActionsBinder:
                 else:
                     remediation = "Check GitHub API status and token permissions."
                 raise RuntimeError(
-                    f"{status} error posting PR comment: {body_snippet}. "
-                    f"{remediation}"
+                    f"{status} error posting PR comment: {body_snippet}. {remediation}"
                 ) from exc
             return cast(dict[str, Any], response.json())
 
@@ -432,6 +469,7 @@ class GitHubActionsBinder:
             event: str = "COMMENT",
             comments: list[dict[str, Any]] | None = None,
         ) -> dict[str, Any]:
+            """Create a review on the current pull request."""
             if pr_number is None:
                 raise ValueError(
                     "pr:review requires a pull_request event, but the current "
@@ -473,8 +511,7 @@ class GitHubActionsBinder:
                 else:
                     remediation = "Check GitHub API status and token permissions."
                 raise RuntimeError(
-                    f"{status} error creating PR review: {body_snippet}. "
-                    f"{remediation}"
+                    f"{status} error creating PR review: {body_snippet}. {remediation}"
                 ) from exc
             return cast(dict[str, Any], response.json())
 
@@ -528,6 +565,7 @@ class GitHubActionsBinder:
             label: str = "agent-proposed",
             files: list[str] | None = None,
         ) -> dict[str, Any]:
+            """Create a branch, commit files, and open a pull request."""
             # Guard: never push to a protected branch.
             if branch_name in protected_branches:
                 raise ValueError(
@@ -657,12 +695,158 @@ class GitHubActionsBinder:
                 else:
                     remediation = "Check GitHub API status and token permissions."
                 raise RuntimeError(
-                    f"{status} error creating PR: {body_snippet}. "
-                    f"{remediation}"
+                    f"{status} error creating PR: {body_snippet}. {remediation}"
                 ) from exc
 
         pr_create.__name__ = "pr_create"
         return pr_create
+
+    def _make_issue_comment(self) -> Any:
+        """Return a callable that posts a comment to a GitHub issue via the API.
+
+        The callable signature is::
+
+            def issue_comment(*, body: str) -> dict[str, Any]: ...
+
+        Args:
+            body: The comment body text (Markdown supported).
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            ValueError: If the current event is not an ``issues`` event (no issue
+                number available).
+            RuntimeError: On GitHub API errors with HTTP status, body snippet, and
+                remediation hint.
+        """
+        repository = self._repository
+        token = self._token
+        issue_number = self._issue_number
+
+        def issue_comment(*, body: str) -> dict[str, Any]:
+            """Post a comment to the triggering GitHub issue."""
+            if issue_number is None:
+                raise ValueError(
+                    "issue:comment requires an issues event, but the current "
+                    "event does not have an issue number."
+                )
+            url = f"https://api.github.com/repos/{repository}/issues/{issue_number}/comments"
+            try:
+                response = httpx.post(
+                    url,
+                    json={"body": body},
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                )
+                response.raise_for_status()
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Network timeout while posting issue comment to GitHub API. "
+                    "Check your network connection or increase the timeout."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                body_snippet = exc.response.text[:200]
+                if status == 403:
+                    remediation = (
+                        "GITHUB_TOKEN may lack `issues:write` scope. "
+                        "Ensure the workflow has `issues: write` permissions."
+                    )
+                elif status == 404:
+                    remediation = (
+                        f"Issue #{issue_number} not found in repository "
+                        f"{repository!r}. "
+                        "Verify the repository name and issue number are correct."
+                    )
+                else:
+                    remediation = "Check GitHub API status and token permissions."
+                raise RuntimeError(
+                    f"{status} error posting issue comment: {body_snippet}. {remediation}"
+                ) from exc
+            return cast(dict[str, Any], response.json())
+
+        issue_comment.__name__ = "issue_comment"
+        return issue_comment
+
+    def _make_issue_label(self) -> Any:
+        """Return a callable that adds labels to a GitHub issue via the API.
+
+        The callable signature is::
+
+            def issue_label(*, labels: list[str]) -> dict[str, Any]: ...
+
+        Args:
+            labels: List of label names to add to the issue.
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            ValueError: If the current event is not an ``issues`` event (no issue
+                number available).
+            RuntimeError: On GitHub API errors with HTTP status, body snippet, and
+                remediation hint.
+        """
+        repository = self._repository
+        token = self._token
+        issue_number = self._issue_number
+
+        def issue_label(*, labels: list[str]) -> dict[str, Any]:
+            """Apply labels to the triggering GitHub issue."""
+            if issue_number is None:
+                raise ValueError(
+                    "issue:label requires an issues event, but the current "
+                    "event does not have an issue number."
+                )
+            url = f"https://api.github.com/repos/{repository}/issues/{issue_number}/labels"
+            try:
+                response = httpx.post(
+                    url,
+                    json={"labels": labels},
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                )
+                response.raise_for_status()
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Network timeout while adding labels to issue via GitHub API. "
+                    "Check your network connection or increase the timeout."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                body_snippet = exc.response.text[:200]
+                if status == 403:
+                    remediation = (
+                        "GITHUB_TOKEN may lack `issues:write` scope. "
+                        "Ensure the workflow has `issues: write` permissions."
+                    )
+                elif status == 404:
+                    remediation = (
+                        f"Issue #{issue_number} not found in repository "
+                        f"{repository!r}. "
+                        "Verify the repository name and issue number are correct."
+                    )
+                elif status == 422:
+                    remediation = (
+                        "Validation failed. One or more label names may be invalid "
+                        "or not exist in the repository."
+                    )
+                else:
+                    remediation = "Check GitHub API status and token permissions."
+                raise RuntimeError(
+                    f"{status} error adding issue labels: {body_snippet}. {remediation}"
+                ) from exc
+            return cast(dict[str, Any], response.json())
+
+        issue_label.__name__ = "issue_label"
+        return issue_label
 
     def map_outputs(
         self,
@@ -717,6 +901,13 @@ class GitHubActionsBinder:
         if self._pr_number is not None:
             comment_body = self._format_output_comment(output_path)
             self._post_output_comment(comment_body)
+
+        # When the event is an issue, post the triage output as an issue comment
+        # and apply severity/category labels (best-effort).
+        if self._issue_number is not None:
+            comment_body = self._format_triage_comment(output_path)
+            self._post_issue_comment(comment_body)
+            self._apply_triage_labels(output_path)
 
         return paths
 
@@ -799,10 +990,7 @@ class GitHubActionsBinder:
             RuntimeError: On GitHub API errors with HTTP status, response body
                 snippet, and remediation hint.
         """
-        url = (
-            f"https://api.github.com/repos/{self._repository}"
-            f"/issues/{self._pr_number}/comments"
-        )
+        url = f"https://api.github.com/repos/{self._repository}/issues/{self._pr_number}/comments"
         try:
             response = httpx.post(
                 url,
@@ -836,10 +1024,211 @@ class GitHubActionsBinder:
             else:
                 remediation = "Check GitHub API status and token permissions."
             raise RuntimeError(
-                f"{status} error posting output PR comment: {body_snippet}. "
-                f"{remediation}"
+                f"{status} error posting output PR comment: {body_snippet}. {remediation}"
             ) from exc
         return cast(dict[str, Any], response.json())
+
+    def _format_triage_comment(self, output_path: Path) -> str:
+        """Format triage output as a readable issue comment.
+
+        Reads the output JSON file and formats severity, category, affected
+        components, recommended assignee, and reasoning into a Markdown comment.
+        Falls back to raw JSON if the output structure is unrecognised.
+
+        Args:
+            output_path: Path to the ``output.json`` file written by the agent.
+
+        Returns:
+            Formatted Markdown string suitable for posting as an issue comment.
+        """
+        if not output_path.exists():
+            return f"Triage output: {output_path} (file not found)"
+
+        try:
+            raw = output_path.read_text(encoding="utf-8")
+        except OSError:
+            return f"Triage output: {output_path} (read error)"
+
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return f"**Triage Output**\n\n```\n{raw[:3000]}\n```"
+
+        agent_output = data.get("output") or {}
+        parts: list[str] = ["## Agentry Issue Triage\n"]
+
+        # Severity badge
+        severity: str = agent_output.get("severity", "")
+        if severity:
+            severity_badge = {
+                "critical": "![critical](https://img.shields.io/badge/severity-critical-red)",
+                "high": "![high](https://img.shields.io/badge/severity-high-orange)",
+                "medium": "![medium](https://img.shields.io/badge/severity-medium-yellow)",
+                "low": "![low](https://img.shields.io/badge/severity-low-green)",
+            }.get(severity, f"**Severity:** {severity}")
+            parts.append(f"{severity_badge}\n")
+
+        # Category
+        category: str = agent_output.get("category", "")
+        if category:
+            parts.append(f"**Category:** {category}\n")
+
+        # Affected components
+        components: list[str] = agent_output.get("affected_components", [])
+        if components:
+            parts.append("**Affected Components:**")
+            for component in components:
+                parts.append(f"- {component}")
+            parts.append("")
+
+        # Recommended assignee
+        assignee: str = agent_output.get("recommended_assignee", "")
+        if assignee:
+            parts.append(f"**Recommended Assignee:** {assignee}\n")
+
+        # Reasoning
+        reasoning: str = agent_output.get("reasoning", "")
+        if reasoning:
+            parts.append("**Reasoning:**")
+            parts.append(f"{reasoning}\n")
+
+        # Raw response fallback when no structured data is present.
+        if not severity and not category and not reasoning:
+            raw_response: str = agent_output.get("raw_response", "")
+            if raw_response:
+                parts.append(f"```\n{raw_response[:3000]}\n```")
+
+        # Token usage
+        usage = data.get("token_usage", {})
+        if usage:
+            _in = usage.get("input_tokens", 0)
+            _out = usage.get("output_tokens", 0)
+            parts.append(f"\n---\n*Tokens: {_in:,} in / {_out:,} out*")
+
+        return "\n".join(parts)
+
+    def _post_issue_comment(self, body: str) -> dict[str, Any]:
+        """Post triage output as an issue comment via the GitHub REST API.
+
+        Args:
+            body: The comment body text (Markdown supported).
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            RuntimeError: On GitHub API errors with HTTP status, response body
+                snippet, and remediation hint.
+        """
+        url = (
+            f"https://api.github.com/repos/{self._repository}/issues/{self._issue_number}/comments"
+        )
+        try:
+            response = httpx.post(
+                url,
+                json={"body": body},
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise RuntimeError(
+                "Network timeout while posting triage issue comment to GitHub API. "
+                "Check your network connection or increase the timeout."
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code
+            body_snippet = exc.response.text[:200]
+            if status == 403:
+                remediation = (
+                    "GITHUB_TOKEN may lack `issues:write` scope. "
+                    "Ensure the workflow has `issues: write` permissions."
+                )
+            elif status == 404:
+                remediation = (
+                    f"Issue #{self._issue_number} not found in repository "
+                    f"{self._repository!r}. "
+                    "Verify the repository name and issue number are correct."
+                )
+            else:
+                remediation = "Check GitHub API status and token permissions."
+            raise RuntimeError(
+                f"{status} error posting triage issue comment: {body_snippet}. {remediation}"
+            ) from exc
+        return cast(dict[str, Any], response.json())
+
+    def _apply_triage_labels(self, output_path: Path) -> None:
+        """Apply severity and category labels to the issue (best-effort).
+
+        Reads the agent output JSON to extract ``severity`` and ``category``
+        fields, then calls the GitHub REST API to add labels in the form
+        ``severity:{value}`` and ``category:{value}``.
+
+        Label application is best-effort: any errors are logged as warnings
+        and do not propagate to the caller.
+
+        Args:
+            output_path: Path to the ``output.json`` file written by the agent.
+        """
+        if not output_path.exists():
+            logger.warning(
+                "Skipping label application: output file %s does not exist.",
+                output_path,
+            )
+            return
+
+        try:
+            raw = output_path.read_text(encoding="utf-8")
+            data = json.loads(raw)
+        except (OSError, json.JSONDecodeError, ValueError) as exc:
+            logger.warning(
+                "Skipping label application: could not parse output file %s: %s",
+                output_path,
+                exc,
+            )
+            return
+
+        agent_output = data.get("output") or {}
+        labels: list[str] = []
+
+        severity = agent_output.get("severity", "")
+        if severity:
+            labels.append(f"severity:{severity}")
+
+        category = agent_output.get("category", "")
+        if category:
+            labels.append(f"category:{category}")
+
+        if not labels:
+            logger.warning(
+                "Skipping label application: no severity or category found in triage output."
+            )
+            return
+
+        url = f"https://api.github.com/repos/{self._repository}/issues/{self._issue_number}/labels"
+        try:
+            response = httpx.post(
+                url,
+                json={"labels": labels},
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Accept": "application/vnd.github+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            )
+            response.raise_for_status()
+            logger.info("Applied triage labels %r to issue #%s.", labels, self._issue_number)
+        except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.RequestError) as exc:
+            logger.warning(
+                "Failed to apply triage labels %r to issue #%s: %s. "
+                "Label application is best-effort; workflow continues.",
+                labels,
+                self._issue_number,
+                exc,
+            )
 
     def generate_pipeline_config(
         self,
@@ -1057,9 +1446,7 @@ class GitHubActionsBinder:
         return payload
 
     @staticmethod
-    def _extract_pr_number(
-        event_name: str, payload: dict[str, Any]
-    ) -> int | None:
+    def _extract_pr_number(event_name: str, payload: dict[str, Any]) -> int | None:
         """Extract the pull request number from a ``pull_request`` event payload.
 
         Args:
@@ -1074,6 +1461,26 @@ class GitHubActionsBinder:
             return None
         pr_info = payload.get("pull_request", {})
         number = pr_info.get("number")
+        if number is not None:
+            return int(number)
+        return None
+
+    @staticmethod
+    def _extract_issue_number(event_name: str, payload: dict[str, Any]) -> int | None:
+        """Extract the issue number from an ``issues`` event payload.
+
+        Args:
+            event_name: The GitHub Actions event name.
+            payload: The parsed event payload dictionary.
+
+        Returns:
+            The integer issue number when *event_name* is ``"issues"`` and
+            the payload contains the expected fields, or ``None`` otherwise.
+        """
+        if event_name != "issues":
+            return None
+        issue_info = payload.get("issue", {})
+        number = issue_info.get("number")
         if number is not None:
             return int(number)
         return None

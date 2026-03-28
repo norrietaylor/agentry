@@ -1,0 +1,7 @@
+Type: cli
+Command: python -c "from agentry.binders.github_actions import SUPPORTED_TOOLS; print(sorted(SUPPORTED_TOOLS))"
+Expected: 'issue:comment' and 'issue:label' present in SUPPORTED_TOOLS
+Timestamp: 2026-03-27T00:00:00Z
+Status: PASS
+
+['issue:comment', 'issue:label', 'pr:comment', 'pr:create', 'pr:review', 'repository:read', 'shell:execute']
