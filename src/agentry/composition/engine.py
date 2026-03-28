@@ -215,12 +215,17 @@ class CompositionEngine:
             except Exception:  # noqa: BLE001
                 logger.debug("on_node_start callback raised", exc_info=True)
 
-        # Resolve node inputs (placeholder for T04 data passing).
-        _resolved_inputs = self._resolve_node_inputs(step)
-
         # Load the workflow definition for this node.
         workflow_path = self._workflow_base_dir / step.workflow
         workflow = load_workflow_file(str(workflow_path))
+
+        # Resolve inputs from two sources:
+        # 1. Binder input resolution (e.g., issue.body from event payload)
+        # 2. Inter-node data passing (e.g., triage.output from upstream node)
+        _binder_inputs = self._resolve_binder_inputs(workflow)
+        _node_inputs = self._resolve_node_inputs(step)
+        # Node inputs (inter-node data passing) override binder inputs.
+        _resolved_inputs = {**_binder_inputs, **_node_inputs}
 
         # Provision a runner based on the workflow's safety configuration.
         runner = self._runner_detector.get_runner(workflow.safety)
@@ -236,7 +241,7 @@ class CompositionEngine:
             # Build agent configuration from the loaded workflow.
             agent_block = getattr(workflow, "agent", None)
             agent_name = agent_block.runtime if agent_block else "claude-code"
-            agent_cfg = {}
+            agent_cfg: dict[str, object] = {}
             if agent_block:
                 agent_cfg["model"] = agent_block.model
                 if agent_block.max_iterations is not None:
@@ -312,6 +317,44 @@ class CompositionEngine:
                         node_id,
                         exc_info=True,
                     )
+
+    def _resolve_binder_inputs(
+        self, workflow: WorkflowDefinition
+    ) -> dict[str, str]:
+        """Resolve workflow-level inputs via the environment binder.
+
+        Uses the binder's ``resolve_inputs()`` to resolve inputs from the
+        execution environment (e.g., GitHub Actions event payload).  This
+        handles ``source`` / ``fallback`` mapping for inputs like
+        ``issue-description`` that read from ``issue.body``.
+
+        Args:
+            workflow: The loaded workflow definition for the node.
+
+        Returns:
+            A mapping from input name to resolved value.  Returns an empty
+            dict if the workflow has no inputs or resolution fails.
+        """
+        if not workflow.inputs:
+            return {}
+
+        # Build input declarations dict from the workflow model.
+        input_declarations: dict[str, dict[str, object]] = {}
+        for name, input_spec in workflow.inputs.items():
+            spec_dict = input_spec.model_dump()
+            input_declarations[name] = spec_dict
+
+        try:
+            resolved = self._binder.resolve_inputs(input_declarations, {})
+            # Filter out None values — only pass inputs that actually resolved.
+            return {k: str(v) for k, v in resolved.items() if v is not None}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Binder input resolution failed for workflow %s: %s",
+                workflow.identity.name,
+                exc,
+            )
+            return {}
 
     def _resolve_node_inputs(self, step: CompositionStep) -> dict[str, str]:
         """Resolve inputs for a composition node using file-based data passing.
