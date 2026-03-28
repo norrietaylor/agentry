@@ -21,7 +21,7 @@ agent:
   runtime: claude-code
   model: claude-sonnet-4-20250514
   system_prompt: prompts/task-decompose-system-prompt.md
-  max_iterations: 1
+  max_iterations: 3
 
 safety:
   trust: elevated

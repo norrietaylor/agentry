@@ -1292,7 +1292,23 @@ class GitHubActionsBinder:
             )
             return
 
-        agent_output = data.get("output") or {}
+        agent_output = data.get("output")
+
+        # Handle string output — try to extract JSON.
+        if isinstance(agent_output, str):
+            extracted = self._extract_json_from_text(agent_output)
+            agent_output = extracted if isinstance(extracted, dict) else {}
+        elif not isinstance(agent_output, dict):
+            agent_output = {}
+
+        # If output is wrapped in raw_response, try to extract from that.
+        if "raw_response" in agent_output and "severity" not in agent_output:
+            extracted = self._extract_json_from_text(
+                str(agent_output["raw_response"])
+            )
+            if isinstance(extracted, dict):
+                agent_output = extracted
+
         labels: list[str] = []
 
         severity = agent_output.get("severity", "")
