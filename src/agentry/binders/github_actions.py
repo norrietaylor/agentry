@@ -1056,6 +1056,42 @@ class GitHubActionsBinder:
 
         return None
 
+    @staticmethod
+    def _extract_triage_from_text(text: str) -> dict[str, str]:
+        """Extract severity and category from markdown-formatted triage text.
+
+        Falls back to regex when the agent returns prose instead of JSON.
+        Looks for patterns like ``**Severity**: high`` or ``Severity: medium``.
+
+        Returns:
+            A dict with ``severity`` and/or ``category`` keys if found.
+        """
+        import re
+
+        result: dict[str, str] = {}
+
+        # Severity: look for "severity" followed by a value.
+        sev_match = re.search(
+            r"[Ss]everity[:\s*]+\*{0,2}(critical|high|medium|low)",
+            text, re.IGNORECASE,
+        )
+        if sev_match:
+            result["severity"] = sev_match.group(1).lower()
+
+        # Category: look for "category" or "type" followed by a value.
+        cat_match = re.search(
+            r"(?:[Cc]ategory|[Tt]ype)[:\s*]+\*{0,2}(bug|security|performance|usability|feature|enhancement|documentation|refactoring|maintenance)",
+            text, re.IGNORECASE,
+        )
+        if cat_match:
+            cat_value = cat_match.group(1).lower()
+            # Normalize common synonyms.
+            if cat_value in ("enhancement", "feature"):
+                cat_value = "feature"
+            result["category"] = cat_value
+
+        return result
+
     def _post_output_comment(self, body: str) -> dict[str, Any]:
         """Post agent output as a PR comment via the GitHub REST API.
 
@@ -1293,12 +1329,6 @@ class GitHubActionsBinder:
             return
 
         agent_output = data.get("output")
-        logger.warning(
-            "Label debug: raw output type=%s keys=%s value_preview=%s",
-            type(agent_output).__name__,
-            list(agent_output.keys()) if isinstance(agent_output, dict) else "N/A",
-            str(agent_output)[:300] if agent_output else "None",
-        )
         # Handle string output — try to extract JSON.
         if isinstance(agent_output, str):
             extracted = self._extract_json_from_text(agent_output)
@@ -1308,11 +1338,14 @@ class GitHubActionsBinder:
 
         # If output is wrapped in raw_response, try to extract from that.
         if "raw_response" in agent_output and "severity" not in agent_output:
-            extracted = self._extract_json_from_text(
-                str(agent_output["raw_response"])
-            )
+            raw_text = str(agent_output["raw_response"])
+            # Try JSON extraction first.
+            extracted = self._extract_json_from_text(raw_text)
             if isinstance(extracted, dict):
                 agent_output = extracted
+            else:
+                # Fall back to regex extraction from markdown text.
+                agent_output = self._extract_triage_from_text(raw_text)
 
         labels: list[str] = []
 
