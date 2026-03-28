@@ -22,7 +22,7 @@ from agentry.binders.exceptions import (
 
 # Tools supported by the local binder.
 SUPPORTED_TOOLS = frozenset(
-    {"repository:read", "shell:execute", "pr:create", "issue:comment", "issue:label"}
+    {"repository:read", "shell:execute", "pr:create", "issue:comment", "issue:label", "issue:create"}
 )
 
 # Allowlist of permitted executable names for shell:execute.
@@ -210,6 +210,8 @@ class LocalBinder:
                 bindings[tool_name] = _make_issue_comment_stub()
             elif tool_name == "issue:label":
                 bindings[tool_name] = _make_issue_label_stub()
+            elif tool_name == "issue:create":
+                bindings[tool_name] = _make_issue_create_stub()
         return bindings
 
     def map_outputs(
@@ -639,3 +641,23 @@ def _make_issue_label_stub() -> Any:
 
     issue_label.__name__ = "issue_label"
     return issue_label
+
+
+def _make_issue_create_stub() -> Any:
+    """Return a no-op callable for the ``issue:create`` tool."""
+
+    def issue_create(
+        *,
+        title: str,
+        body: str,
+        labels: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Log issue creation metadata and return a stub response."""
+        print(
+            f"[local] issue:create (stub) — title={title!r}, "
+            f"labels={labels}, body_length={len(body)}"
+        )
+        return {"number": 0, "url": "", "status": "stub"}
+
+    issue_create.__name__ = "issue_create"
+    return issue_create

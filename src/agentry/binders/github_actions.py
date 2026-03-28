@@ -31,6 +31,7 @@ SUPPORTED_TOOLS: frozenset[str] = frozenset(
         "pr:create",
         "issue:comment",
         "issue:label",
+        "issue:create",
     }
 )
 
@@ -369,6 +370,8 @@ class GitHubActionsBinder:
                 bindings[tool_name] = self._make_issue_comment()
             elif tool_name == "issue:label":
                 bindings[tool_name] = self._make_issue_label()
+            elif tool_name == "issue:create":
+                bindings[tool_name] = self._make_issue_create()
         return bindings
 
     # ------------------------------------------------------------------
@@ -853,6 +856,65 @@ class GitHubActionsBinder:
 
         issue_label.__name__ = "issue_label"
         return issue_label
+
+    def _make_issue_create(self) -> Any:
+        """Return a callable that creates a new GitHub issue via the API.
+
+        The callable signature is::
+
+            def issue_create(*, title: str, body: str,
+                             labels: list[str] | None = None) -> dict[str, Any]: ...
+
+        Returns:
+            A dict with ``number``, ``url``, and ``status`` keys.
+
+        Raises:
+            RuntimeError: On GitHub API errors.
+        """
+        repository = self._repository
+        token = self._token
+
+        def issue_create(
+            *,
+            title: str,
+            body: str,
+            labels: list[str] | None = None,
+        ) -> dict[str, Any]:
+            """Create a new GitHub issue."""
+            url = f"https://api.github.com/repos/{repository}/issues"
+            payload: dict[str, Any] = {"title": title, "body": body}
+            if labels:
+                payload["labels"] = labels
+            try:
+                response = httpx.post(
+                    url,
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                )
+                response.raise_for_status()
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Network timeout while creating issue via GitHub API."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                body_snippet = exc.response.text[:200]
+                raise RuntimeError(
+                    f"{status} error creating issue: {body_snippet}"
+                ) from exc
+            data = response.json()
+            return {
+                "number": data["number"],
+                "url": data.get("html_url", ""),
+                "status": "created",
+            }
+
+        issue_create.__name__ = "issue_create"
+        return issue_create
 
     def map_outputs(
         self,
