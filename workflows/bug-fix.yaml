@@ -26,7 +26,7 @@ agent:
   runtime: claude-code
   model: claude-sonnet-4-20250514
   system_prompt: prompts/bug-fix-system-prompt.md
-  max_iterations: 3
+  max_iterations: 20
 
 safety:
   trust: elevated
