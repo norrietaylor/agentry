@@ -1,0 +1,40 @@
+# This workflow replaces the superseded agentry-issue-triage.yml workflow.
+# It triggers on issue creation and runs the planning pipeline which handles issue triage
+# and task decomposition more comprehensively than the triage-only workflow.
+
+name: "Agentry: Planning Pipeline"
+
+'on':
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  agentry:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Install agentry
+        run: pip install .
+
+      - name: Run agentry
+        run: >
+          agentry --output-format json run workflows/planning-pipeline.yaml
+          --input repository-ref=.
+          --binder github-actions
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

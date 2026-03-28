@@ -1,0 +1,82 @@
+identity:
+  name: feature-implement
+  version: 1.0.0
+  description: Implement a feature based on planning-pipeline decomposition output, or decompose it further into scoped sub-issues if too large.
+
+inputs:
+  issue-description:
+    type: string
+    required: true
+    description: A description of the feature to implement, sourced from the issue body.
+    source: issue.body
+    fallback: issue.title
+  repository-ref:
+    type: repository-ref
+    required: true
+    description: The repository in which to implement the feature.
+
+tools:
+  capabilities:
+    - repository:read
+    - shell:execute
+    - pr:create
+    - issue:comment
+    - issue:label
+    - issue:create
+
+agent:
+  runtime: claude-code
+  model: claude-sonnet-4-20250514
+  system_prompt: prompts/feature-implement-system-prompt.md
+  max_iterations: 10
+
+safety:
+  trust: elevated
+  resources:
+    timeout: 600
+
+output:
+  schema:
+    type: object
+    required:
+      - action
+      - reasoning
+    allOf:
+      - if:
+          properties:
+            action:
+              const: implemented
+        then:
+          required: [pr_url]
+      - if:
+          properties:
+            action:
+              const: decomposed
+        then:
+          required: [sub_issues]
+    properties:
+      action:
+        type: string
+        enum:
+          - implemented
+          - decomposed
+        description: Whether the feature was implemented directly or decomposed into sub-issues.
+      pr_url:
+        type: string
+        description: URL of the pull request opened for the implementation. Present when action is 'implemented'.
+      sub_issues:
+        type: array
+        description: List of sub-issue URLs created when the feature was decomposed. Present when action is 'decomposed'.
+        items:
+          type: string
+      reasoning:
+        type: string
+        description: Explanation of why the feature was implemented directly or decomposed.
+  side_effects:
+    - type: terminal
+      description: Print implementation or decomposition summary to stdout
+  output_paths:
+    - feature-implement-result.json
+
+composition:
+  steps: []

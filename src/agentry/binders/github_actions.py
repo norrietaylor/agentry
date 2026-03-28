@@ -931,8 +931,27 @@ class GitHubActionsBinder:
         except (json.JSONDecodeError, ValueError):
             return f"**Agent Output**\n\n```\n{raw[:3000]}\n```"
 
-        agent_output = data.get("output") or {}
+        agent_output = data.get("output")
         parts: list[str] = ["## Agentry Code Review\n"]
+
+        # Handle case where output is a string (raw agent response).
+        if isinstance(agent_output, str) and agent_output.strip():
+            # Try to extract JSON from the string (agent may wrap in markdown).
+            extracted = self._extract_json_from_text(agent_output)
+            if isinstance(extracted, dict):
+                agent_output = extracted
+            else:
+                parts.append(f"```\n{agent_output[:3000]}\n```")
+                # Token usage
+                usage = data.get("token_usage", {})
+                if usage:
+                    _in = usage.get("input_tokens", 0)
+                    _out = usage.get("output_tokens", 0)
+                    parts.append(f"\n---\n*Tokens: {_in:,} in / {_out:,} out*")
+                return "\n".join(parts)
+
+        if not isinstance(agent_output, dict):
+            agent_output = {}
 
         # Summary
         summary = agent_output.get("summary", "")
@@ -968,6 +987,14 @@ class GitHubActionsBinder:
         if raw_response and not findings and not summary:
             parts.append(f"```\n{raw_response[:3000]}\n```")
 
+        # If we still have nothing useful, show a diagnostic message.
+        if not findings and not summary and not raw_response:
+            parts.append("*No structured output was returned by the agent.*\n")
+            # Include raw output from the execution record if available.
+            raw_stdout = data.get("raw_stdout", "")
+            if raw_stdout:
+                parts.append(f"```\n{raw_stdout[:3000]}\n```")
+
         # Token usage
         usage = data.get("token_usage", {})
         if usage:
@@ -976,6 +1003,52 @@ class GitHubActionsBinder:
             parts.append(f"\n---\n*Tokens: {_in:,} in / {_out:,} out*")
 
         return "\n".join(parts)
+
+    @staticmethod
+    def _extract_json_from_text(text: str) -> dict[str, Any] | None:
+        """Extract a JSON object from text that may contain markdown fences.
+
+        Handles common patterns where Claude wraps JSON in ```json ... ```
+        code fences or includes preamble text before the JSON.
+
+        Returns:
+            The parsed dict if found, or ``None`` if no valid JSON object
+            could be extracted.
+        """
+        import re
+
+        # Try direct parse first.
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, dict):
+                return parsed
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Try extracting from ```json ... ``` fences.
+        fence_match = re.search(r"```(?:json)?\s*\n(.*?)```", text, re.DOTALL)
+        if fence_match:
+            try:
+                parsed = json.loads(fence_match.group(1))
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # Try finding first { ... } block.
+        brace_start = text.find("{")
+        if brace_start >= 0:
+            # Walk from the end to find the matching closing brace.
+            brace_end = text.rfind("}")
+            if brace_end > brace_start:
+                try:
+                    parsed = json.loads(text[brace_start : brace_end + 1])
+                    if isinstance(parsed, dict):
+                        return parsed
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+        return None
 
     def _post_output_comment(self, body: str) -> dict[str, Any]:
         """Post agent output as a PR comment via the GitHub REST API.
