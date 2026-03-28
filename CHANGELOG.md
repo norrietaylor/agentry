@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — v0.2.0
+
+### Added
+
+#### Phase 7 — Issue Triage Pipeline
+- `agentry-planning-pipeline.yml` CI workflow triggers on `issues: [opened, reopened]`
+- Runs full planning pipeline (triage, decompose, summarize) and posts results as issue comments
+- Applies severity and category labels (`severity:*`, `category:*`) to issues automatically
+- `agentry-issue-triage.yml` removed (superseded by planning-pipeline)
+
+#### Phase 8 — Bug-Fix Automation
+- `agentry-bug-fix.yml` CI workflow triggers on `issues: [labeled]` when `category:bug` is applied
+- Bug-fix workflow updated with `agent:` block, `pr:create`, `issue:comment`, and source mapping
+- End-to-end: issue label → diagnose → open fix PR
+
+#### Phase 9 — Feature Implementation
+- `workflows/feature-implement.yaml` workflow for feature implementation with scope assessment
+- `agentry-feature-implement.yml` CI workflow triggers on `issues: [labeled]` when `category:feature` is applied
+- Implements feature directly or creates sub-issues for large scope
+
+#### Binder & Composition Enhancements (Phases 7-9)
+- `issue:comment`, `issue:label`, `issue:create` tool bindings added to GitHubActionsBinder
+- `StringInput` model extended with `source` and `fallback` fields
+- Composition engine resolves binder inputs, passes `output_schema`, calls `map_outputs` per node
+- Label extraction from both JSON and markdown prose output
+- Workflow YAML files updated with `agent:` blocks and source mapping (`triage`, `bug-fix`, `task-decompose`, `planning-pipeline`)
+
 ## [v0.1.0] - 2026-03-21
 
 ### Added

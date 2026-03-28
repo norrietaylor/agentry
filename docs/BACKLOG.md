@@ -5,6 +5,29 @@ Items are grouped by category. Each item notes its source and any recommended pr
 
 ---
 
+## Phases 7-9 Completed — CI Self-Development Loop
+
+Phases 7-9 close the self-development loop. Issues filed against the repo are automatically triaged, decomposed, and routed to bug-fix or feature-implement workflows that open PRs.
+
+- [x] **Planning pipeline CI** — `agentry-planning-pipeline.yml` triggers on `issues: [opened, reopened]`, runs triage → decompose → summarize _(Phase 7)_
+- [x] **Issue comments and labels** — pipeline posts results as issue comments, applies `severity:*` and `category:*` labels _(Phase 7)_
+- [x] **`issue:comment`, `issue:label`, `issue:create` tool bindings** — added to GitHubActionsBinder _(Phase 7)_
+- [x] **Bug-fix CI** — `agentry-bug-fix.yml` triggers on `category:bug` label, diagnoses and opens fix PR _(Phase 8)_
+- [x] **Feature-implement CI** — `agentry-feature-implement.yml` triggers on `category:feature` label, implements or creates sub-issues _(Phase 9)_
+- [x] **`feature-implement.yaml` workflow** — new workflow with scope assessment _(Phase 9)_
+- [x] **`StringInput` source/fallback** — inputs can declare source mapping and fallback values _(Phases 7-9)_
+- [x] **Composition binder integration** — engine resolves binder inputs, passes output_schema, calls map_outputs per node _(Phases 7-9)_
+- [x] **Label extraction** — parses labels from both JSON and markdown prose output _(Phase 7)_
+- [x] **Deleted `agentry-issue-triage.yml`** — superseded by planning-pipeline _(Phase 7)_
+- [ ] **Scheduled pipeline runs** — backlog grooming via cron-triggered planning-pipeline _(deferred)_
+- [ ] **Auto-merge for small fixes** — agent PRs that pass CI and are under N lines _(deferred)_
+- [ ] **Token budget enforcement** — per-execution cost caps _(deferred)_
+- [ ] **Streaming agent output** — real-time output during execution _(deferred)_
+
+_Source: Phase 7, 8, 9 specs_
+
+---
+
 ## Phase 6 Completed — Self-Development
 
 Phase 6 (Self-Development) is complete. Agentry can now execute its own workflows, review its own PRs in CI, resolve git-diff inputs, and propose fixes via agent-generated PRs.
@@ -14,7 +37,7 @@ Phase 6 (Self-Development) is complete. Agentry can now execute its own workflow
 - [x] **Git-diff input resolution** — `--input diff=HEAD~1` auto-resolves git refs to diff content _(Phase 6, T02)_
 - [x] **Self-reviewing PRs in CI** — `.github/workflows/agentry-code-review.yml` runs code-review on every PR _(Phase 6, T03)_
 - [x] **`pr:create` tool binding** — both LocalBinder (via `gh` CLI) and GitHubActionsBinder (via REST API) _(Phase 6, T04)_
-- [ ] **Issue-triggered triage** — run triage workflow on new GitHub issues _(Phase 6 Non-Goals)_
+- [x] **Issue-triggered triage** — run triage workflow on new GitHub issues _(completed in Phase 7 as planning-pipeline)_
 - [ ] **Scheduled pipeline runs** — backlog grooming via cron-triggered planning-pipeline _(Phase 6 Non-Goals)_
 - [ ] **Auto-merge for small fixes** — agent PRs that pass CI and are under N lines _(Phase 6 Non-Goals)_
 - [ ] **Token budget enforcement** — per-execution cost caps _(Phase 6 Non-Goals)_
@@ -57,7 +80,7 @@ Phase 4 (GitHub Actions binder & CI generation) is complete. These items were de
 - [ ] **Custom runner OS selection** — `--runs-on` flag for `ci generate` _(Phase 4 Open Q)_
 - [ ] **GitHub App authentication** — support GitHub App installation tokens in addition to `GITHUB_TOKEN` _(Phase 4 Non-Goals)_
 - [ ] **Workflow dispatch inputs UI** — `workflow_dispatch` trigger with custom input parameters in GitHub UI _(Phase 4 Non-Goals)_
-- [ ] **Issue-tracker tools** — `issue:create`, `issue:comment`, `issue:label` tool bindings _(Phase 4 Non-Goals)_
+- [x] **Issue-tracker tools** — `issue:create`, `issue:comment`, `issue:label` tool bindings _(Phase 4 Non-Goals, completed in Phases 7-9)_
 - [ ] **GitHub API rate limiting** — retry-with-backoff for 429 responses in binder API calls _(Phase 4 Open Q)_
 - [ ] **GitLab CI binder** — second `EnvironmentBinder` implementation _(PRD Decision Point)_
 - [ ] **Jenkins binder** — third `EnvironmentBinder` implementation _(PRD Decision Point)_
@@ -75,7 +98,7 @@ _Source: Phase 4 spec Non-Goals, Open Questions, PRD Section 4.2_
 - [x] **CI/CD config** — `.github/workflows/ci.yml` for lint, type check, tests
 - [x] **Commit outstanding changes** — all committed and pushed
 - [x] **CONTRIBUTING.md** — code style (ruff/mypy), testing, commit conventions
-- [x] **CHANGELOG.md** — documents Phases 1-5 in v0.1.0
+- [x] **CHANGELOG.md** — documents Phases 1-5 in v0.1.0, Phases 7-9 in v0.2.0
 
 _Source: repo readiness assessment_
 
@@ -118,7 +141,7 @@ _Source: repo readiness assessment_
 ## Tool Capabilities
 
 - [x] **PR tools** — `pr:comment`, `pr:review`, `pr:create` bound in both binders _(Phase 4, Phase 6)_
-- [ ] **Issue tools** — `issue:create`, `issue:comment`, `issue:label` _(Phase 4 Non-Goals)_
+- [x] **Issue tools** — `issue:create`, `issue:comment`, `issue:label` _(Phase 4 Non-Goals, completed in Phases 7-9)_
 - [ ] **File write tools** — `file:write` beyond output directory _(Phase 1 Non-Goals)_
 - [ ] **Custom side-effect plugin interface** — domain-specific side effects beyond the fixed allowlist _(PRD Decision Point)_
 

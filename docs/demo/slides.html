@@ -509,7 +509,7 @@
     <div class="divider"></div>
     <div class="grid-3" style="margin-bottom:32px;">
       <div style="text-align:center">
-        <div class="big-number">6</div>
+        <div class="big-number">9</div>
         <div class="stat-label">Phases complete</div>
       </div>
       <div style="text-align:center">
@@ -517,7 +517,7 @@
         <div class="stat-label">Tests passing</div>
       </div>
       <div style="text-align:center">
-        <div class="big-number">5</div>
+        <div class="big-number">6</div>
         <div class="stat-label">Standard workflows</div>
       </div>
     </div>
@@ -528,7 +528,10 @@
         <span class="tag tag-done">DONE</span> <span class="white">Composition engine</span><br>
         <span class="tag tag-done">DONE</span> <span class="white">GitHub Actions binder &amp; CI gen</span><br>
         <span class="tag tag-done">DONE</span> <span class="white">Agent runtime abstraction</span><br>
-        <span class="tag tag-done">DONE</span> <span class="white">Self-development &amp; dogfooding</span>
+        <span class="tag tag-done">DONE</span> <span class="white">Self-development &amp; dogfooding</span><br>
+        <span class="tag tag-done">DONE</span> <span class="white">Issue triage pipeline</span><br>
+        <span class="tag tag-done">DONE</span> <span class="white">Bug-fix automation</span><br>
+        <span class="tag tag-done">DONE</span> <span class="white">Feature implementation</span>
       </div>
       <div>
         <span class="tag tag-next">NEXT</span> <span class="white">Task board</span><br>
@@ -539,29 +542,34 @@
     </div>
   </div>
 
-  <!-- Slide 9: Self-Development — Live -->
+  <!-- Slide 9: Self-Development Loop -->
   <div class="slide" id="s9">
-    <h2>Self-Development <span class="accent">&mdash; Live</span></h2>
+    <h2>Self-Development Loop <span class="accent">&mdash; Live</span></h2>
     <div class="divider"></div>
-    <p style="font-size:1.6rem; color:var(--text); margin-bottom:24px;">Agentry develops itself. Not a vision &mdash; it's running now.</p>
+    <p style="font-size:1.4rem; color:var(--text); margin-bottom:20px;">Agentry develops itself. Issues in &rarr; PRs out &mdash; fully automated, human-reviewed.</p>
+    <div style="text-align:center; margin: 20px 0;">
+      <span class="flow-item">Issue filed</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item">Planning Pipeline</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item">Labels applied</span>
+    </div>
     <div class="grid-2" style="margin-top:16px;">
-      <div>
-        <h3>What's Working</h3>
-        <ul>
-          <li>Every PR auto-reviewed by <code>code-review.yaml</code></li>
-          <li><code>bug-fix.yaml</code> creates branches &amp; opens PRs</li>
-          <li><code>--input diff=HEAD~1</code> resolves git refs</li>
-          <li><code>pr:create</code> in both local &amp; CI binders</li>
-          <li>Agent PRs labeled <code class="accent">agent-proposed</code></li>
-        </ul>
+      <div class="card">
+        <h3 style="color:var(--accent);">category:bug</h3>
+        <p><code>bug-fix.yaml</code> diagnoses the issue, implements a fix on a new branch, and opens a PR.</p>
       </div>
-      <div>
-        <h3>One Phase Away</h3>
-        <pre style="font-size:0.95rem;"><code>$ agentry run workflows/develop.yaml \
-    --input spec=docs/specs/07-spec.md</code></pre>
-        <p style="margin-top:16px;">Full lifecycle: research &rarr; spec &rarr; plan &rarr; dispatch &rarr; implement &rarr; validate</p>
-        <p style="margin-top:8px;">Remaining: task board, human approval gates, dynamic composition</p>
+      <div class="card">
+        <h3 style="color:var(--blue);">category:feature</h3>
+        <p><code>feature-implement.yaml</code> assesses scope, then implements directly or creates sub-issues.</p>
       </div>
+    </div>
+    <div style="text-align:center; margin-top:20px;">
+      <span class="flow-item">All PRs</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item">code-review.yaml</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-item">Human merge</span>
     </div>
   </div>
 

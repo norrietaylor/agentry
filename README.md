@@ -38,9 +38,30 @@ agentry run workflows/triage.yaml \
 
 Agentry resolves inputs (including git refs like `HEAD~1` for diff inputs), selects the appropriate runner, launches the agent runtime, enforces the tool manifest, and validates the output against the declared schema. Execution records are written to `.agentry/runs/` for auditability.
 
-### Self-development
+### Self-development loop
 
-Agentry reviews its own PRs. The `.github/workflows/agentry-code-review.yml` workflow runs `agentry run workflows/code-review.yaml` on every pull request, posting findings as PR comments. The bug-fix workflow can create branches and open PRs with proposed fixes — all requiring human review before merge.
+Agentry develops itself through a closed-loop CI pipeline:
+
+```
+Issue filed
+  → planning-pipeline (triage → decompose → summarize)
+      ↓ applies severity/category labels
+  category:bug     → bug-fix workflow → diagnose + open fix PR
+  category:feature → feature-implement workflow → implement PR or create sub-issues
+                          ↓
+                    code-review reviews all PRs
+```
+
+CI workflows drive the loop:
+
+| CI Workflow | Trigger | What It Does |
+|-------------|---------|--------------|
+| `agentry-planning-pipeline.yml` | `issues: [opened, reopened]` | Runs triage → decompose → summarize, posts results as issue comments, applies labels |
+| `agentry-bug-fix.yml` | `issues: [labeled]` (`category:bug`) | Diagnoses bug and opens a fix PR |
+| `agentry-feature-implement.yml` | `issues: [labeled]` (`category:feature`) | Implements feature or creates sub-issues |
+| `agentry-code-review.yml` | `pull_request` | Reviews every PR, posts findings as comments |
+
+All agent-proposed PRs are labeled `agent-proposed` and require human review before merge.
 
 ### 3. Generate a GitHub Actions pipeline
 
@@ -205,9 +226,10 @@ The generated YAML declares minimal token permissions derived from the workflow'
 | Workflow | Description |
 |----------|-------------|
 | `workflows/code-review.yaml` | PR diff review for security, performance, and style |
-| `workflows/triage.yaml` | Issue classification and routing |
-| `workflows/bug-fix.yaml` | Bug diagnosis and fix suggestion (creates PRs via `pr:create`) |
+| `workflows/triage.yaml` | Issue classification and routing (`issue:comment`, `issue:label`) |
+| `workflows/bug-fix.yaml` | Bug diagnosis and fix PR (`pr:create`, `issue:comment`) |
 | `workflows/task-decompose.yaml` | Issue decomposition into implementation tasks |
+| `workflows/feature-implement.yaml` | Feature implementation with scope assessment |
 | `workflows/planning-pipeline.yaml` | Composed pipeline: triage → decompose → summarize |
 
 All workflows execute end-to-end via `agentry run`, producing structured JSON output. The `--input diff=HEAD~1` syntax automatically resolves git refs to diff content.

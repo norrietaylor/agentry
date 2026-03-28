@@ -4,13 +4,16 @@ This directory contains the standard workflow library for the Agentry CLI. Each 
 
 ## Overview
 
-Three workflows are available:
+Six workflows are available:
 
 1. **code-review** — Reviews pull request diffs for quality, correctness, security, and performance issues.
-2. **bug-fix** — Diagnoses bugs and identifies root causes with targeted fixes.
-3. **triage** — Classifies and triages software issues for severity, category, and routing.
+2. **bug-fix** — Diagnoses bugs, creates fix branches, and opens PRs.
+3. **triage** — Classifies issues by severity and category, applies labels, posts comments.
+4. **task-decompose** — Decomposes issues into implementation sub-tasks.
+5. **feature-implement** — Implements features with scope assessment, opens PRs or creates sub-issues.
+6. **planning-pipeline** — Composed pipeline: triage → decompose → summarize.
 
-All workflows use Claude as the LLM provider and enforce strict output schemas to ensure consistent, structured results.
+All workflows use Claude as the LLM provider, enforce strict output schemas, and integrate with GitHub via issue/PR tool bindings.
 
 ---
 
@@ -108,11 +111,11 @@ agentry run workflows/code-review.yaml \
 
 **File:** `bug-fix.yaml`
 
-Diagnoses reported bugs, identifies root causes, and suggests targeted fixes with confidence scores.
+Diagnoses reported bugs, identifies root causes, and opens fix PRs.
 
 ### Purpose
 
-The bug-fix workflow assists in triaging and fixing software defects. Given a bug report and the repository, it investigates the codebase, identifies the root cause, and provides a specific, localized fix recommendation.
+The bug-fix workflow assists in triaging and fixing software defects. Given a bug report and the repository, it investigates the codebase, identifies the root cause, implements a fix on a new branch, and opens a PR. In CI, it is triggered by the `category:bug` label and posts progress as issue comments.
 
 ### Inputs
 
@@ -178,10 +181,8 @@ Prints diagnosis summary to stdout.
 
 - `repository:read` — Read-only access to the codebase
 - `shell:execute` — Run diagnostic commands (tests, logs, etc.)
-
-### Budget
-
-Maximum 1 finding per diagnosis.
+- `pr:create` — Create branches and open fix PRs
+- `issue:comment` — Post diagnosis progress to the source issue
 
 ### Example Usage
 
@@ -264,6 +265,8 @@ Prints triage summary to stdout.
 ### Tool Capabilities
 
 - `repository:read` — Read-only access to the repository for component context
+- `issue:comment` — Post triage results to the source issue
+- `issue:label` — Apply severity and category labels
 
 ### Example Usage
 
@@ -271,6 +274,86 @@ Prints triage summary to stdout.
 agentry run workflows/triage.yaml \
   --input-issue-description "High CPU usage when processing large CSV files" \
   --input-repository-ref .
+```
+
+---
+
+## task-decompose Workflow
+
+**File:** `task-decompose.yaml`
+
+Decomposes a triaged issue into concrete implementation sub-tasks with dependencies and effort estimates.
+
+### Inputs
+
+- **issue-description** (string, required) — The issue to decompose.
+- **repository-ref** (repository-ref, required) — The repository for codebase context.
+
+### Tool Capabilities
+
+- `repository:read` — Read-only access to the repository
+
+### Example Usage
+
+```bash
+agentry run workflows/task-decompose.yaml \
+  --input issue-description="Add CSV export to reports page" \
+  --input repository-ref=.
+```
+
+---
+
+## feature-implement Workflow
+
+**File:** `feature-implement.yaml`
+
+Implements a feature based on an issue description. Assesses scope first: small features are implemented directly with a PR; large features are broken into sub-issues.
+
+### Inputs
+
+- **issue-description** (string, required) — The feature request to implement.
+- **repository-ref** (repository-ref, required) — The repository to work in.
+
+### Tool Capabilities
+
+- `repository:read` — Read-only access to the codebase
+- `shell:execute` — Run commands (tests, builds)
+- `pr:create` — Create branches and open implementation PRs
+- `issue:comment` — Post progress to the source issue
+- `issue:create` — Create sub-issues for large-scope features
+
+### Example Usage
+
+```bash
+agentry run workflows/feature-implement.yaml \
+  --input issue-description="Add dark mode toggle to settings page" \
+  --input repository-ref=.
+```
+
+---
+
+## planning-pipeline Workflow
+
+**File:** `planning-pipeline.yaml`
+
+A composed multi-agent pipeline that runs triage → decompose → summarize in sequence. Used as the entry point for issue processing in CI.
+
+### Composition Steps
+
+1. **triage** — Classifies the issue (severity, category, components)
+2. **decompose** — Breaks the issue into implementation tasks
+3. **summarize** — Produces a consolidated plan from triage and decomposition results
+
+### CI Integration
+
+Triggered by `agentry-planning-pipeline.yml` on new/reopened issues. Posts results as issue comments and applies `severity:*` and `category:*` labels that trigger downstream workflows.
+
+### Example Usage
+
+```bash
+agentry run workflows/planning-pipeline.yaml \
+  --input issue-description="API returns 500 on empty payload" \
+  --input repository-ref=.
 ```
 
 ---
