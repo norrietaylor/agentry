@@ -1363,10 +1363,11 @@ class GitHubActionsBinder:
             )
             return
 
-        # Use the trigger token (OAuth/PAT) instead of GITHUB_TOKEN so that
-        # the label event fires downstream workflows (e.g. bug-fix, feature-implement).
-        # GITHUB_TOKEN-originated events are intentionally suppressed by GitHub Actions.
-        label_token = self._trigger_token
+        # Use GITHUB_TOKEN for label application — it has issues:write permission.
+        # Note: GITHUB_TOKEN-originated events won't trigger other workflows,
+        # so downstream label-triggered workflows (bug-fix, feature-implement)
+        # will need a separate trigger mechanism (e.g., workflow_dispatch or PAT).
+        label_token = self._token
         url = f"https://api.github.com/repos/{self._repository}/issues/{self._issue_number}/labels"
         try:
             response = httpx.post(
