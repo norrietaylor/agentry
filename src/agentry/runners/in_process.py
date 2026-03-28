@@ -124,6 +124,7 @@ class InProcessRunner:
             tool_names=agent_config.tool_names,
             timeout=agent_config.timeout,
             output_schema=agent_config.output_schema,
+            max_iterations=agent_config.agent_config.get("max_iterations"),
         )
 
         agent_result = self.agent.execute(agent_task)

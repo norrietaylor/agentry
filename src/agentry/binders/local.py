@@ -21,7 +21,9 @@ from agentry.binders.exceptions import (
 )
 
 # Tools supported by the local binder.
-SUPPORTED_TOOLS = frozenset({"repository:read", "shell:execute", "pr:create"})
+SUPPORTED_TOOLS = frozenset(
+    {"repository:read", "shell:execute", "pr:create", "issue:comment", "issue:label"}
+)
 
 # Allowlist of permitted executable names for shell:execute.
 _SHELL_ALLOWLIST: frozenset[str] = frozenset(
@@ -204,6 +206,10 @@ class LocalBinder:
                 bindings[tool_name] = _make_shell_execute()
             elif tool_name == "pr:create":
                 bindings[tool_name] = _make_pr_create()
+            elif tool_name == "issue:comment":
+                bindings[tool_name] = _make_issue_comment_stub()
+            elif tool_name == "issue:label":
+                bindings[tool_name] = _make_issue_label_stub()
         return bindings
 
     def map_outputs(
@@ -568,3 +574,59 @@ def _make_pr_create() -> Any:
 
     pr_create.__name__ = "pr_create"
     return pr_create
+
+
+def _make_issue_comment_stub() -> Any:
+    """Return a no-op callable for the ``issue:comment`` tool.
+
+    When running locally, posting a comment to a GitHub issue is not
+    meaningful.  This stub logs the comment body to stdout and returns a
+    placeholder result so that workflows that declare ``issue:comment`` can
+    still be executed locally for testing purposes.
+
+    The callable signature is::
+
+        def issue_comment(*, body: str, issue_number: int | None = None) -> dict[str, Any]: ...
+
+    Returns:
+        A dict with ``status`` and ``message`` keys.
+    """
+
+    def issue_comment(
+        *,
+        body: str,
+        issue_number: int | None = None,
+    ) -> dict[str, Any]:
+        print(f"[local] issue:comment (stub) — body: {body[:80]!r}")
+        return {"status": "stub", "message": "issue:comment is a no-op in local binder"}
+
+    issue_comment.__name__ = "issue_comment"
+    return issue_comment
+
+
+def _make_issue_label_stub() -> Any:
+    """Return a no-op callable for the ``issue:label`` tool.
+
+    When running locally, applying labels to a GitHub issue is not
+    meaningful.  This stub logs the labels to stdout and returns a
+    placeholder result so that workflows that declare ``issue:label`` can
+    still be executed locally for testing purposes.
+
+    The callable signature is::
+
+        def issue_label(*, labels: list[str], issue_number: int | None = None) -> dict[str, Any]: ...
+
+    Returns:
+        A dict with ``status`` and ``message`` keys.
+    """
+
+    def issue_label(
+        *,
+        labels: list[str],
+        issue_number: int | None = None,
+    ) -> dict[str, Any]:
+        print(f"[local] issue:label (stub) — labels: {labels}")
+        return {"status": "stub", "message": "issue:label is a no-op in local binder"}
+
+    issue_label.__name__ = "issue_label"
+    return issue_label

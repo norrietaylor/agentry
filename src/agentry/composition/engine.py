@@ -239,6 +239,8 @@ class CompositionEngine:
             agent_cfg = {}
             if agent_block:
                 agent_cfg["model"] = agent_block.model
+                if agent_block.max_iterations is not None:
+                    agent_cfg["max_iterations"] = agent_block.max_iterations
             agent_config = AgentConfig(
                 system_prompt=self._build_system_prompt(workflow),
                 resolved_inputs=_resolved_inputs,

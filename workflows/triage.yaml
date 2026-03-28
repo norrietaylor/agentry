@@ -21,15 +21,11 @@ tools:
     - issue:comment
     - issue:label
 
-model:
-  provider: anthropic
-  model_id: claude-sonnet-4-20250514
-  temperature: 0.2
-  max_tokens: 2048
+agent:
+  runtime: claude-code
+  model: claude-sonnet-4-20250514
   system_prompt: prompts/triage-system-prompt.md
-  retry:
-    max_attempts: 3
-    backoff: exponential
+  max_iterations: 1
 
 safety:
   trust: elevated
