@@ -8,15 +8,21 @@ inputs:
     type: string
     required: true
     description: A description of the issue to plan.
+    source: issue.body
+    fallback: issue.title
   repository-ref:
     type: repository-ref
     required: true
     description: The repository to inspect for component context.
 
-model:
-  provider: anthropic
-  model_id: claude-sonnet-4-20250514
-  temperature: 0.2
+tools:
+  capabilities:
+    - issue:comment
+    - issue:label
+
+agent:
+  runtime: claude-code
+  model: claude-sonnet-4-20250514
 
 safety:
   trust: elevated

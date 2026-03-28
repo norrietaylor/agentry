@@ -1,0 +1,14 @@
+Type: file
+Description: Verify agentry-planning-pipeline.yml CI workflow exists with correct trigger and structure
+Timestamp: 2026-03-27T00:00:00Z
+Expected: .github/workflows/agentry-planning-pipeline.yml exists, triggers on issues:opened, has issues:write permission
+
+--- FILE VALIDATION ---
+
+File existence check:
+PASS: agentry-planning-pipeline.yml exists
+PASS: trigger issues:opened - types=['opened']
+PASS: issues:write permission - issues=write
+PASS: runs planning-pipeline.yaml - cmd=agentry --output-format json run workflows/planning-pipeline.yaml --input repository-ref=. --binder github-actions
+
+Status: PASS
