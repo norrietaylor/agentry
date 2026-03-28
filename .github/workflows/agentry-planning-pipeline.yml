@@ -1,3 +1,7 @@
+# This workflow replaces the superseded agentry-issue-triage.yml workflow.
+# It triggers on issue creation and runs the planning pipeline which handles issue triage
+# and task decomposition more comprehensively than the triage-only workflow.
+
 name: "Agentry: Planning Pipeline"
 
 'on':

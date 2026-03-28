@@ -1,0 +1,15 @@
+Type: file
+Description: Verify that agentry-planning-pipeline.yml contains replacement comment
+Timestamp: 2026-03-27T00:00:00Z
+
+Command: head -4 .github/workflows/agentry-planning-pipeline.yml
+Expected: Comment explaining that this workflow replaces agentry-issue-triage.yml
+Result:
+# This workflow replaces the superseded agentry-issue-triage.yml workflow.
+# It triggers on issue creation and runs the planning pipeline which handles issue triage
+# and task decomposition more comprehensively than the triage-only workflow.
+#
+
+Status: PASS
+
+The planning pipeline workflow now includes a header comment explaining that it replaces the superseded triage-only workflow.

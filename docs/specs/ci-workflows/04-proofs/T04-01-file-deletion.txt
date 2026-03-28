@@ -1,0 +1,11 @@
+Type: file
+Description: Verify that agentry-issue-triage.yml has been deleted
+Timestamp: 2026-03-27T00:00:00Z
+
+Command: test -f .github/workflows/agentry-issue-triage.yml && echo "FOUND" || echo "DELETED"
+Expected: DELETED
+Result: DELETED
+
+Status: PASS
+
+The superseded triage-only CI workflow file has been successfully removed from the repository.
