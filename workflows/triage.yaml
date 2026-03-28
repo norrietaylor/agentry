@@ -18,6 +18,8 @@ inputs:
 tools:
   capabilities:
     - repository:read
+    - issue:comment
+    - issue:label
 
 model:
   provider: anthropic

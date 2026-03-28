@@ -1,0 +1,48 @@
+Type: file
+Description: triage.yaml workflow configuration includes issue tool capabilities
+Expected: File contains repository:read, issue:comment, and issue:label in tools.capabilities
+Timestamp: 2026-03-27T00:00:00Z
+
+Test: Check triage.yaml file exists
+Command: test -f workflows/triage.yaml && echo "FOUND"
+Output:
+FOUND
+
+Test: Validate YAML syntax
+Command: python3 -c "import yaml; yaml.safe_load(open('workflows/triage.yaml')); print('VALID')"
+Output:
+VALID
+
+Test: Check tools.capabilities section
+Command: sed -n '/^tools:/,/^[a-z]/p' workflows/triage.yaml | head -5
+Output:
+tools:
+  capabilities:
+    - repository:read
+    - issue:comment
+    - issue:label
+
+Test: Verify all three capabilities are present
+Command: grep -E "repository:read|issue:comment|issue:label" workflows/triage.yaml | wc -l
+Output:
+3
+
+Test: Check repository:read capability exists
+Command: grep "repository:read" workflows/triage.yaml && echo "FOUND"
+Output:
+    - repository:read
+FOUND
+
+Test: Check issue:comment capability exists
+Command: grep "issue:comment" workflows/triage.yaml && echo "FOUND"
+Output:
+    - issue:comment
+FOUND
+
+Test: Check issue:label capability exists
+Command: grep "issue:label" workflows/triage.yaml && echo "FOUND"
+Output:
+    - issue:label
+FOUND
+
+Status: PASS
