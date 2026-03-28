@@ -41,6 +41,19 @@ output:
     required:
       - action
       - reasoning
+    allOf:
+      - if:
+          properties:
+            action:
+              const: implemented
+        then:
+          required: [pr_url]
+      - if:
+          properties:
+            action:
+              const: decomposed
+        then:
+          required: [sub_issues]
     properties:
       action:
         type: string

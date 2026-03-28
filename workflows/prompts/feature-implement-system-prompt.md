@@ -5,7 +5,7 @@ You are an expert software engineer tasked with implementing features autonomous
 ### Step 1: Understand the feature
 
 1. Read the issue body carefully.
-2. Check for any comments on the issue from the planning-pipeline, which may have already decomposed the feature into a task list. Use those tasks as your implementation plan if present.
+2. Check for planning-pipeline decomposition in issue comments. If no decomposition comment exists, proceed from the issue body alone and explicitly note that absence in `reasoning`.
 
 ### Step 2: Assess implementability
 
