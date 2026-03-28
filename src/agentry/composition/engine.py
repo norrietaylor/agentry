@@ -275,8 +275,26 @@ class CompositionEngine:
             self._node_outputs[node_id] = node_output_path
 
             # Map outputs via the binder (posts comments, applies labels).
-            # The binder reads the output.json file to format and post results.
+            # The GitHubActionsBinder.map_outputs() reads output.json from
+            # $GITHUB_WORKSPACE/.agentry/runs/<run_id>/output.json, so we
+            # must write the node output there in the expected format.
             try:
+                import os
+
+                _workspace = os.environ.get("GITHUB_WORKSPACE", "")
+                if _workspace:
+                    _binder_output_dir = (
+                        Path(_workspace) / ".agentry" / "runs" / node_id
+                    )
+                    _binder_output_dir.mkdir(parents=True, exist_ok=True)
+                    _binder_output_path = _binder_output_dir / "output.json"
+                    _binder_payload = {
+                        "output": result.output,
+                        "token_usage": result.token_usage,
+                    }
+                    _binder_output_path.write_text(
+                        json.dumps(_binder_payload, indent=2)
+                    )
                 self._binder.map_outputs(
                     output_declarations=_output_decls(workflow),
                     target_dir=str(self._run_dir / node_id),
@@ -357,11 +375,26 @@ class CompositionEngine:
         if not workflow.inputs:
             return {}
 
-        # Build input declarations dict from the workflow model.
+        # Build input declarations dict from the workflow model, but only
+        # include inputs that the binder can resolve: those with a source
+        # mapping, standard types (repository-ref, git-diff), or explicit
+        # defaults.  Skip inputs meant for inter-node data passing (string
+        # inputs with no source/default that the binder cannot resolve).
+        _binder_types = {"repository-ref", "git-diff", "document-ref"}
         input_declarations: dict[str, dict[str, object]] = {}
         for name, input_spec in workflow.inputs.items():
             spec_dict = input_spec.model_dump()
-            input_declarations[name] = spec_dict
+            input_type = spec_dict.get("type", "string")
+            has_source = spec_dict.get("source") is not None
+            has_default = spec_dict.get("default") is not None
+            if input_type in _binder_types or has_source or has_default:
+                # Mark as optional for binder resolution so missing values
+                # don't raise — inter-node data passing fills them later.
+                spec_dict["required"] = False
+                input_declarations[name] = spec_dict
+
+        if not input_declarations:
+            return {}
 
         try:
             resolved = self._binder.resolve_inputs(input_declarations, {})
