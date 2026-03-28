@@ -8,6 +8,8 @@ inputs:
     type: string
     required: true
     description: A description of the issue to triage.
+    source: issue.body
+    fallback: issue.title
   repository-ref:
     type: repository-ref
     required: true

@@ -553,3 +553,180 @@ class TestResolveInputsMixed:
         assert result["dispatch_input"] == "from_dispatch"
         assert result["from_source"] == "from_source"
         assert result["optional_missing"] is None
+
+
+# ---------------------------------------------------------------------------
+# resolve_inputs: issues event — issue.body source mapping (T02)
+# ---------------------------------------------------------------------------
+
+
+class TestResolveInputsIssueBodySource:
+    """issue-description input resolves from issue.body for GitHub issues events."""
+
+    def test_resolves_issue_body_from_issues_event(self, tmp_path: Path) -> None:
+        """source: issue.body resolves to the issue body text on an issues event."""
+        payload = {"issue": {"title": "Short title", "body": "Full issue body text."}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": True,
+                "source": "issue.body",
+                "fallback": "issue.title",
+            }
+        }
+        result = binder.resolve_inputs(declarations, {})
+        assert result["issue-description"] == "Full issue body text."
+
+    def test_falls_back_to_issue_title_when_body_is_null(
+        self, tmp_path: Path
+    ) -> None:
+        """When issue.body is missing/null, falls back to issue.title with a warning."""
+        payload = {"issue": {"title": "The issue title", "body": None}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": True,
+                "source": "issue.body",
+                "fallback": "issue.title",
+            }
+        }
+        result = binder.resolve_inputs(declarations, {})
+        assert result["issue-description"] == "The issue title"
+
+    def test_falls_back_to_issue_title_when_body_is_absent(
+        self, tmp_path: Path
+    ) -> None:
+        """When issue.body key is absent, falls back to issue.title."""
+        payload = {"issue": {"title": "Title only, no body"}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": True,
+                "source": "issue.body",
+                "fallback": "issue.title",
+            }
+        }
+        result = binder.resolve_inputs(declarations, {})
+        assert result["issue-description"] == "Title only, no body"
+
+    def test_falls_back_to_issue_title_when_body_is_empty_string(
+        self, tmp_path: Path
+    ) -> None:
+        """When issue.body is an empty string, falls back to issue.title."""
+        payload = {"issue": {"title": "Meaningful title", "body": ""}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": True,
+                "source": "issue.body",
+                "fallback": "issue.title",
+            }
+        }
+        result = binder.resolve_inputs(declarations, {})
+        assert result["issue-description"] == "Meaningful title"
+
+    def test_fallback_emits_warning_log(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Falling back from source to fallback emits a warning log."""
+        import logging
+
+        payload = {"issue": {"title": "Title fallback", "body": None}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": True,
+                "source": "issue.body",
+                "fallback": "issue.title",
+            }
+        }
+        with caplog.at_level(logging.WARNING, logger="agentry.binders.github_actions"):
+            binder.resolve_inputs(declarations, {})
+        assert any("issue-description" in record.message for record in caplog.records)
+
+    def test_cli_provided_value_overrides_source_and_fallback(
+        self, tmp_path: Path
+    ) -> None:
+        """CLI --input override takes precedence over source and fallback mappings."""
+        payload = {"issue": {"title": "Issue title", "body": "Issue body"}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": True,
+                "source": "issue.body",
+                "fallback": "issue.title",
+            }
+        }
+        result = binder.resolve_inputs(
+            declarations, {"issue-description": "CLI override value"}
+        )
+        assert result["issue-description"] == "CLI override value"
+
+    def test_cli_override_takes_precedence_even_when_body_null(
+        self, tmp_path: Path
+    ) -> None:
+        """CLI override wins even when body is null (would trigger fallback)."""
+        payload = {"issue": {"title": "Issue title", "body": None}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": True,
+                "source": "issue.body",
+                "fallback": "issue.title",
+            }
+        }
+        result = binder.resolve_inputs(
+            declarations, {"issue-description": "Explicit override"}
+        )
+        assert result["issue-description"] == "Explicit override"
+
+    def test_no_fallback_returns_none_when_source_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """Without a fallback key, missing source returns None for optional inputs."""
+        payload = {"issue": {"title": "Title only"}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": False,
+                "source": "issue.body",
+                # No fallback key.
+            }
+        }
+        result = binder.resolve_inputs(declarations, {})
+        assert result["issue-description"] is None
+
+    def test_fallback_not_triggered_when_source_resolves(
+        self, tmp_path: Path
+    ) -> None:
+        """Fallback is NOT used when source resolves to a non-empty value."""
+        payload = {"issue": {"title": "The title", "body": "The body content"}}
+        env = _make_env(tmp_path, event_name="issues", payload=payload)
+        binder = GitHubActionsBinder(env=env)
+        declarations = {
+            "issue-description": {
+                "type": "string",
+                "required": True,
+                "source": "issue.body",
+                "fallback": "issue.title",
+            }
+        }
+        result = binder.resolve_inputs(declarations, {})
+        # Should get body, not title.
+        assert result["issue-description"] == "The body content"

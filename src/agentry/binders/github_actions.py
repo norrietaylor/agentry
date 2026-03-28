@@ -8,6 +8,7 @@ to workflow step outputs.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -18,9 +19,19 @@ import httpx
 from agentry.binders.exceptions import UnsupportedToolError
 from agentry.binders.local import _make_repository_read, _make_shell_execute
 
+logger = logging.getLogger(__name__)
+
 # Tools supported by the GitHub Actions binder.
 SUPPORTED_TOOLS: frozenset[str] = frozenset(
-    {"repository:read", "shell:execute", "pr:comment", "pr:review", "pr:create"}
+    {
+        "repository:read",
+        "shell:execute",
+        "pr:comment",
+        "pr:review",
+        "pr:create",
+        "issue:comment",
+        "issue:label",
+    }
 )
 
 
@@ -100,6 +111,11 @@ class GitHubActionsBinder:
 
         # Extract PR number when the event is a pull_request event.
         self._pr_number: int | None = self._extract_pr_number(
+            self._event_name, self._event_payload
+        )
+
+        # Extract issue number when the event is an issues event.
+        self._issue_number: int | None = self._extract_issue_number(
             self._event_name, self._event_payload
         )
 
@@ -223,6 +239,7 @@ class GitHubActionsBinder:
         1. Explicit ``--input`` override via *provided_values*.
         2. ``workflow_dispatch`` event inputs payload field.
         3. Dot-notation ``source`` mapping against the event payload.
+        4. Dot-notation ``fallback`` mapping when source resolves to null/empty.
 
         Args:
             name: Input name.
@@ -248,8 +265,23 @@ class GitHubActionsBinder:
         source: str | None = spec.get("source")
         if source is not None:
             value = self._traverse_payload(source)
-            if value is not None:
+            if value is not None and str(value):
                 return str(value)
+
+            # 4. Fallback when source resolves to null or empty string.
+            fallback: str | None = spec.get("fallback")
+            if fallback is not None:
+                fallback_value = self._traverse_payload(fallback)
+                if fallback_value is not None and str(fallback_value):
+                    logger.warning(
+                        "Input %r: source %r resolved to null/empty; "
+                        "falling back to %r (value: %r).",
+                        name,
+                        source,
+                        fallback,
+                        fallback_value,
+                    )
+                    return str(fallback_value)
 
         return None
 
@@ -290,10 +322,16 @@ class GitHubActionsBinder:
         - ``pr:create``: Creates a branch, commits files, and opens a pull request
           via the GitHub REST API.  Enforces safety guardrails: no force-push,
           no push to protected branches, and no auto-merge.
+        - ``issue:comment``: Posts a comment to the current issue via the GitHub
+          REST API (``POST /repos/{owner}/{repo}/issues/{number}/comments``).
+          Requires an ``issues`` event context.
+        - ``issue:label``: Adds labels to the current issue via the GitHub REST
+          API (``POST /repos/{owner}/{repo}/issues/{number}/labels``).  Requires
+          an ``issues`` event context.
 
         Args:
             tool_declarations: Tool identifiers declared in the workflow
-                (e.g. ``["repository:read", "pr:comment"]``).
+                (e.g. ``["repository:read", "issue:comment"]``).
 
         Returns:
             Mapping of tool name to a concrete callable implementation.
@@ -326,6 +364,10 @@ class GitHubActionsBinder:
                 bindings[tool_name] = self._make_pr_review()
             elif tool_name == "pr:create":
                 bindings[tool_name] = self._make_pr_create()
+            elif tool_name == "issue:comment":
+                bindings[tool_name] = self._make_issue_comment()
+            elif tool_name == "issue:label":
+                bindings[tool_name] = self._make_issue_label()
         return bindings
 
     # ------------------------------------------------------------------
@@ -663,6 +705,159 @@ class GitHubActionsBinder:
 
         pr_create.__name__ = "pr_create"
         return pr_create
+
+    def _make_issue_comment(self) -> Any:
+        """Return a callable that posts a comment to a GitHub issue via the API.
+
+        The callable signature is::
+
+            def issue_comment(*, body: str) -> dict[str, Any]: ...
+
+        Args:
+            body: The comment body text (Markdown supported).
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            ValueError: If the current event is not an ``issues`` event (no issue
+                number available).
+            RuntimeError: On GitHub API errors with HTTP status, body snippet, and
+                remediation hint.
+        """
+        repository = self._repository
+        token = self._token
+        issue_number = self._issue_number
+
+        def issue_comment(*, body: str) -> dict[str, Any]:
+            if issue_number is None:
+                raise ValueError(
+                    "issue:comment requires an issues event, but the current "
+                    "event does not have an issue number."
+                )
+            url = (
+                f"https://api.github.com/repos/{repository}"
+                f"/issues/{issue_number}/comments"
+            )
+            try:
+                response = httpx.post(
+                    url,
+                    json={"body": body},
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                )
+                response.raise_for_status()
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Network timeout while posting issue comment to GitHub API. "
+                    "Check your network connection or increase the timeout."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                body_snippet = exc.response.text[:200]
+                if status == 403:
+                    remediation = (
+                        "GITHUB_TOKEN may lack `issues:write` scope. "
+                        "Ensure the workflow has `issues: write` permissions."
+                    )
+                elif status == 404:
+                    remediation = (
+                        f"Issue #{issue_number} not found in repository "
+                        f"{repository!r}. "
+                        "Verify the repository name and issue number are correct."
+                    )
+                else:
+                    remediation = "Check GitHub API status and token permissions."
+                raise RuntimeError(
+                    f"{status} error posting issue comment: {body_snippet}. "
+                    f"{remediation}"
+                ) from exc
+            return cast(dict[str, Any], response.json())
+
+        issue_comment.__name__ = "issue_comment"
+        return issue_comment
+
+    def _make_issue_label(self) -> Any:
+        """Return a callable that adds labels to a GitHub issue via the API.
+
+        The callable signature is::
+
+            def issue_label(*, labels: list[str]) -> dict[str, Any]: ...
+
+        Args:
+            labels: List of label names to add to the issue.
+
+        Returns:
+            The parsed JSON response from the GitHub API.
+
+        Raises:
+            ValueError: If the current event is not an ``issues`` event (no issue
+                number available).
+            RuntimeError: On GitHub API errors with HTTP status, body snippet, and
+                remediation hint.
+        """
+        repository = self._repository
+        token = self._token
+        issue_number = self._issue_number
+
+        def issue_label(*, labels: list[str]) -> dict[str, Any]:
+            if issue_number is None:
+                raise ValueError(
+                    "issue:label requires an issues event, but the current "
+                    "event does not have an issue number."
+                )
+            url = (
+                f"https://api.github.com/repos/{repository}"
+                f"/issues/{issue_number}/labels"
+            )
+            try:
+                response = httpx.post(
+                    url,
+                    json={"labels": labels},
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                )
+                response.raise_for_status()
+            except httpx.TimeoutException as exc:
+                raise RuntimeError(
+                    "Network timeout while adding labels to issue via GitHub API. "
+                    "Check your network connection or increase the timeout."
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                body_snippet = exc.response.text[:200]
+                if status == 403:
+                    remediation = (
+                        "GITHUB_TOKEN may lack `issues:write` scope. "
+                        "Ensure the workflow has `issues: write` permissions."
+                    )
+                elif status == 404:
+                    remediation = (
+                        f"Issue #{issue_number} not found in repository "
+                        f"{repository!r}. "
+                        "Verify the repository name and issue number are correct."
+                    )
+                elif status == 422:
+                    remediation = (
+                        "Validation failed. One or more label names may be invalid "
+                        "or not exist in the repository."
+                    )
+                else:
+                    remediation = "Check GitHub API status and token permissions."
+                raise RuntimeError(
+                    f"{status} error adding issue labels: {body_snippet}. "
+                    f"{remediation}"
+                ) from exc
+            return cast(dict[str, Any], response.json())
+
+        issue_label.__name__ = "issue_label"
+        return issue_label
 
     def map_outputs(
         self,
@@ -1074,6 +1269,28 @@ class GitHubActionsBinder:
             return None
         pr_info = payload.get("pull_request", {})
         number = pr_info.get("number")
+        if number is not None:
+            return int(number)
+        return None
+
+    @staticmethod
+    def _extract_issue_number(
+        event_name: str, payload: dict[str, Any]
+    ) -> int | None:
+        """Extract the issue number from an ``issues`` event payload.
+
+        Args:
+            event_name: The GitHub Actions event name.
+            payload: The parsed event payload dictionary.
+
+        Returns:
+            The integer issue number when *event_name* is ``"issues"`` and
+            the payload contains the expected fields, or ``None`` otherwise.
+        """
+        if event_name != "issues":
+            return None
+        issue_info = payload.get("issue", {})
+        number = issue_info.get("number")
         if number is not None:
             return int(number)
         return None

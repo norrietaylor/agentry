@@ -1,0 +1,10 @@
+Type: test
+Command: uv run pytest tests/unit/ -q
+Expected: Full unit test suite passes with no regressions
+Timestamp: 2026-03-27T00:00:00Z
+
+1572 passed, 1 skipped in 8.20s
+
+(Baseline before T02: 1534 passed, 1 skipped — T02 adds 9 new tests)
+
+Status: PASS
