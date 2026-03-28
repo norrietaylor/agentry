@@ -253,12 +253,19 @@ class CompositionEngine:
                 agent_cfg["model"] = agent_block.model
                 if agent_block.max_iterations is not None:
                     agent_cfg["max_iterations"] = agent_block.max_iterations
+            # Extract output schema so the agent uses --output-format json.
+            _output_schema = (
+                workflow.output.schema_def
+                if workflow.output and workflow.output.schema_def
+                else None
+            )
             agent_config = AgentConfig(
                 system_prompt=self._build_system_prompt(workflow),
                 resolved_inputs=_resolved_inputs,
                 tool_names=list(workflow.tools.capabilities),
                 agent_name=agent_name,
                 agent_config=agent_cfg,
+                output_schema=_output_schema,
             )
 
             # Execute the agent.
