@@ -1293,6 +1293,12 @@ class GitHubActionsBinder:
             return
 
         agent_output = data.get("output")
+        logger.warning(
+            "Label debug: raw output type=%s keys=%s value_preview=%s",
+            type(agent_output).__name__,
+            list(agent_output.keys()) if isinstance(agent_output, dict) else "N/A",
+            str(agent_output)[:300] if agent_output else "None",
+        )
         # Handle string output — try to extract JSON.
         if isinstance(agent_output, str):
             extracted = self._extract_json_from_text(agent_output)
