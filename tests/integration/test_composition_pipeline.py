@@ -89,7 +89,10 @@ class RecordingRunner:
             final_output=output_data,
             error="",
         )
-        return ExecutionResult(execution_record=exec_record)
+        return ExecutionResult(
+            execution_record=exec_record,
+            output=output_data,
+        )
 
     def teardown(self, runner_context: RunnerContext) -> None:
         pass
@@ -256,8 +259,8 @@ class TestThreeNodePipeline:
             await engine.execute()
 
         content = json.loads((tmp_path / "a" / "result.json").read_text())
-        # The engine writes exec_record.to_dict() which includes final_content.
-        assert "final_content" in content or "error" in content
+        # The engine writes ExecutionResult fields (output, token_usage, exit_code).
+        assert "output" in content or "error" in content
 
     async def test_node_b_received_a_output_path(self, tmp_path: Path) -> None:
         """B's resolved_inputs contains a path pointing to A's result.json."""

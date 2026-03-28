@@ -48,7 +48,7 @@ from agentry.models.execution import ExecutionRecord
 from agentry.models.workflow import WorkflowDefinition
 from agentry.parser import load_workflow_file
 from agentry.runners.detector import RunnerDetector
-from agentry.runners.protocol import AgentConfig, RunnerContext
+from agentry.runners.protocol import AgentConfig, ExecutionResult, RunnerContext
 
 logger = logging.getLogger(__name__)
 
@@ -252,11 +252,10 @@ class CompositionEngine:
             # Execute the agent.
             result = runner.execute(runner_context, agent_config)
 
-            # Extract the execution record.
-            exec_record = result.execution_record
-
-            # Write node output to disk.
-            self._write_node_output(node_id, exec_record)
+            # Write node output to disk using the ExecutionResult fields
+            # (output, token_usage, error) rather than the legacy
+            # execution_record which is None for AgentProtocol-based runners.
+            self._write_node_output(node_id, result)
 
             # Store the output path so downstream nodes can resolve inputs
             # via file-based data passing.
@@ -264,16 +263,23 @@ class CompositionEngine:
                 self._run_dir / node_id / "result.json"
             )
 
-            # Record success.
-            self._node_records[node_id] = exec_record
-            if exec_record is not None and exec_record.error:
+            # Check for failure using ExecutionResult fields.
+            node_error = result.error or (
+                "" if result.exit_code == 0
+                else f"Agent exited with code {result.exit_code}"
+            )
+
+            # Record the legacy execution_record for backward compat.
+            self._node_records[node_id] = result.execution_record
+            if node_error:
                 self._node_statuses[node_id] = NodeStatus.FAILED
                 _duration = time.time() - self._node_start_times.get(
                     node_id, time.time()
                 )
+                logger.error("Node %s failed: %s", node_id, node_error)
                 if self._on_node_fail is not None:
                     try:
-                        self._on_node_fail(node_id, exec_record.error)
+                        self._on_node_fail(node_id, node_error)
                     except Exception:  # noqa: BLE001
                         logger.debug(
                             "on_node_fail callback raised", exc_info=True
@@ -497,25 +503,37 @@ class CompositionEngine:
         return f"You are {identity.name}. {description}"
 
     def _write_node_output(
-        self, node_id: str, exec_record: ExecutionRecord | None
+        self, node_id: str, result: ExecutionResult | ExecutionRecord | None
     ) -> None:
         """Write the execution result for a node to disk.
 
-        Creates ``<run_dir>/<node_id>/result.json`` containing the
-        serialised execution record.
+        Creates ``<run_dir>/<node_id>/result.json`` containing the agent
+        output, token usage, and any error information.  Accepts either
+        an ``ExecutionResult`` (from agent-based runners) or a legacy
+        ``ExecutionRecord``.
 
         Args:
             node_id: The node identifier.
-            exec_record: The execution record to serialise, or ``None``.
+            result: The ``ExecutionResult`` from the runner, or ``None``.
         """
         node_dir = self._run_dir / node_id
         node_dir.mkdir(parents=True, exist_ok=True)
         output_path = node_dir / "result.json"
 
-        if exec_record is not None:
-            data = exec_record.to_dict()
+        if isinstance(result, ExecutionResult):
+            data: dict[str, object] = {
+                "output": result.output,
+                "token_usage": result.token_usage,
+                "exit_code": result.exit_code,
+            }
+            if result.error:
+                data["error"] = result.error
+            if result.stdout:
+                data["raw_stdout"] = result.stdout[:3000]
+        elif result is not None and hasattr(result, "to_dict"):
+            data = result.to_dict()
         else:
-            data = {"error": "No execution record available."}
+            data = {"error": "No execution result available."}
 
         output_path.write_text(json.dumps(data, indent=2))
 
