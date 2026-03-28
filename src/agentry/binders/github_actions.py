@@ -346,6 +346,7 @@ class GitHubActionsBinder:
                 def _repository_read_ci(
                     *, path: str, _workspace: str = workspace, _reader: Any = _reader
                 ) -> str:
+                    """Read a file from the CI workspace with path traversal protection."""
                     return cast(str, _reader(repo_root=_workspace, path=path))
 
                 _repository_read_ci.__name__ = "repository_read"
@@ -391,6 +392,7 @@ class GitHubActionsBinder:
         pr_number = self._pr_number
 
         def pr_comment(*, body: str) -> dict[str, Any]:
+            """Post a comment to the current pull request."""
             if pr_number is None:
                 raise ValueError(
                     "pr:comment requires a pull_request event, but the current "
@@ -467,6 +469,7 @@ class GitHubActionsBinder:
             event: str = "COMMENT",
             comments: list[dict[str, Any]] | None = None,
         ) -> dict[str, Any]:
+            """Create a review on the current pull request."""
             if pr_number is None:
                 raise ValueError(
                     "pr:review requires a pull_request event, but the current "
@@ -562,6 +565,7 @@ class GitHubActionsBinder:
             label: str = "agent-proposed",
             files: list[str] | None = None,
         ) -> dict[str, Any]:
+            """Create a branch, commit files, and open a pull request."""
             # Guard: never push to a protected branch.
             if branch_name in protected_branches:
                 raise ValueError(
@@ -721,6 +725,7 @@ class GitHubActionsBinder:
         issue_number = self._issue_number
 
         def issue_comment(*, body: str) -> dict[str, Any]:
+            """Post a comment to the triggering GitHub issue."""
             if issue_number is None:
                 raise ValueError(
                     "issue:comment requires an issues event, but the current "
@@ -791,6 +796,7 @@ class GitHubActionsBinder:
         issue_number = self._issue_number
 
         def issue_label(*, labels: list[str]) -> dict[str, Any]:
+            """Apply labels to the triggering GitHub issue."""
             if issue_number is None:
                 raise ValueError(
                     "issue:label requires an issues event, but the current "

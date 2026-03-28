@@ -5,7 +5,7 @@ Timestamp: 2026-03-27T00:00:00Z
 
 ============================= test session starts ==============================
 platform linux -- Python 3.13.7, pytest-9.0.2, pluggy-1.6.0
-rootdir: /home/norrie.guest/code/agentry/.worktrees/feature-issue-triage
+rootdir: <workspace>
 collected 5 items
 
 tests/e2e/test_public_surface.py::test_validate_all_standard_workflows[code-review.yaml] PASSED [ 20%]

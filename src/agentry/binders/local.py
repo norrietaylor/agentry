@@ -358,6 +358,7 @@ def _make_repository_read() -> Any:
     """
 
     def repository_read(*, repo_root: str, path: str) -> str:
+        """Read a file from the repository with path traversal protection."""
         root = Path(repo_root).resolve()
         # Resolve the candidate path. We must handle symlinks properly:
         # Path.resolve() follows symlinks, so resolving the candidate gives us
@@ -447,6 +448,7 @@ def _make_shell_execute() -> Any:
     """
 
     def shell_execute(*, command: str, cwd: str | None = None) -> str:
+        """Execute a read-only shell command from the allowlist."""
         _validate_shell_command(command)
         result = subprocess.run(
             command,
@@ -507,6 +509,7 @@ def _make_pr_create() -> Any:
         files: list[str] | None = None,
         cwd: str | None = None,
     ) -> dict[str, Any]:
+        """Create a local branch, commit files, and open a PR via ``gh``."""
         # Guard: never push to a protected branch.
         if branch_name in _PROTECTED_BRANCHES:
             raise ValueError(
@@ -517,6 +520,7 @@ def _make_pr_create() -> Any:
         work_dir = cwd or os.getcwd()
 
         def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+            """Run a git/gh subprocess in the work directory."""
             return subprocess.run(
                 cmd,
                 cwd=work_dir,
@@ -597,7 +601,11 @@ def _make_issue_comment_stub() -> Any:
         body: str,
         issue_number: int | None = None,
     ) -> dict[str, Any]:
-        print(f"[local] issue:comment (stub) — body: {body[:80]!r}")
+        """Log comment metadata and return a stub response."""
+        print(
+            "[local] issue:comment (stub) — "
+            f"issue_number={issue_number!r}, body_length={len(body)}"
+        )
         return {"status": "stub", "message": "issue:comment is a no-op in local binder"}
 
     issue_comment.__name__ = "issue_comment"
@@ -625,6 +633,7 @@ def _make_issue_label_stub() -> Any:
         labels: list[str],
         issue_number: int | None = None,
     ) -> dict[str, Any]:
+        """Log label names and return a stub response."""
         print(f"[local] issue:label (stub) — labels: {labels}")
         return {"status": "stub", "message": "issue:label is a no-op in local binder"}
 

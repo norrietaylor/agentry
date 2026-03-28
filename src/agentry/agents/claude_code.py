@@ -155,6 +155,10 @@ class ClaudeCodeAgent:
             else self._max_turns
         )
         if effective_max_turns is not None:
+            if effective_max_turns < 1:
+                raise ValueError(
+                    f"max_iterations must be >= 1, got {effective_max_turns}"
+                )
             cmd.extend(["--max-turns", str(effective_max_turns)])
 
         if agent_task.output_schema is not None:

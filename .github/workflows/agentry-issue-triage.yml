@@ -40,7 +40,6 @@ jobs:
       - name: Run agentry
         run: >
           agentry --output-format json run workflows/triage.yaml
-          --input issue-description="${{ github.event.issue.body }}"
           --input repository-ref=.
           --binder github-actions
         env:
