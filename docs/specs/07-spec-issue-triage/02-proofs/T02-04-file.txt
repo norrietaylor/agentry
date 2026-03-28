@@ -1,0 +1,15 @@
+Type: file
+Description: Verify bug-fix-system-prompt.md instructs agent to commit, open PR with agent-proposed label, and post issue comment
+Command: grep -n "commit\|pr:create\|issue:comment\|agent-proposed\|issue number" workflows/prompts/bug-fix-system-prompt.md
+Timestamp: 2026-03-27T00:00:00Z
+
+--- Output ---
+4. **Commit the fix** with a descriptive commit message that references the originating issue number (e.g. `fix: resolve null pointer in parser (fixes #42)`).
+5. **Open a pull request** using the `pr:create` tool with:
+   - The label `agent-proposed` applied to the PR.
+6. **Post a comment** on the original issue using the `issue:comment` tool, linking to the newly created PR so the reporter is informed of the fix.
+- Always include the originating issue number in the commit message, PR body, and the comment posted to the issue.
+
+--- Verification ---
+Expected: Prompt instructs agent to: commit fix referencing issue number, open PR via pr:create with agent-proposed label and issue reference, post issue comment via issue:comment linking to PR
+Result: PASS

@@ -1,0 +1,19 @@
+Type: file
+Description: Verify bug-fix.yaml uses agent: block instead of model: block, with max_iterations: 3
+Command: grep -n "agent:\|max_iterations\|model:" workflows/bug-fix.yaml
+Timestamp: 2026-03-27T00:00:00Z
+
+--- Output ---
+25:agent:
+27:  model: claude-sonnet-4-20250514
+29:  max_iterations: 3
+
+--- Verification ---
+Expected: agent: block present at top level, max_iterations: 3 inside agent block, old standalone model: block absent
+Result: PASS
+
+Notes:
+- Line 25: `agent:` top-level block present (replaces former `model:` top-level block)
+- Line 27: `model:` is a sub-field of `agent:`, not a standalone block
+- Line 29: `max_iterations: 3` present inside agent block
+- Former `model: { provider, model_id, temperature, max_tokens, retry }` top-level block is gone

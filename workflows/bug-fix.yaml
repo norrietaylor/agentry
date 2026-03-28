@@ -8,6 +8,8 @@ inputs:
     type: string
     required: true
     description: A description of the bug or unexpected behaviour to investigate.
+    source: issue.body
+    fallback: issue.title
   repository-ref:
     type: repository-ref
     required: true
@@ -17,16 +19,14 @@ tools:
   capabilities:
     - repository:read
     - shell:execute
+    - pr:create
+    - issue:comment
 
-model:
-  provider: anthropic
-  model_id: claude-sonnet-4-20250514
-  temperature: 0.2
-  max_tokens: 4096
+agent:
+  runtime: claude-code
+  model: claude-sonnet-4-20250514
   system_prompt: prompts/bug-fix-system-prompt.md
-  retry:
-    max_attempts: 3
-    backoff: exponential
+  max_iterations: 3
 
 safety:
   trust: elevated
